@@ -25,7 +25,8 @@
         <div class="marquee-title">⚡ 台語快打旋風 700 ⚡</div>
       </div>
       <div class="marquee-tools">
-        <button id="btnReturnHome" class="arcade-tool-btn home-btn" title="回主畫面 (ESC)">🏠 回主畫面</button>
+        <button id="btnReturnHome" class="arcade-tool-btn home-btn" title="回主畫面 (ESC)">🏠 主畫面</button>
+        <button id="btnShowAbout" class="arcade-tool-btn about-btn" title="致敬與來源">ℹ️ 來源</button>
         <button id="btnToggleBGM" class="arcade-tool-btn active">🎵 BGM: 開</button>
         <button id="btnToggleSFX" class="arcade-tool-btn active">🔊 音效: 開</button>
         <button id="btnToggleCRT" class="arcade-tool-btn active">📺 CRT: 開</button>
@@ -63,6 +64,16 @@
         <div class="coin-prompt">
           <span class="coin-blink">INSERT COIN</span>
           <span class="coin-tip">按 1 或 空白鍵 直接開始</span>
+        </div>
+
+        <!-- Inspiration & Source Credits Bar -->
+        <div class="source-credits-bar">
+          <span class="credit-label">💡 靈感與來源致敬：</span>
+          <a href="https://howmay-w.github.io/taigi700/" target="_blank" rel="noopener" class="credit-link">Howmay W.《台語700》</a>
+          <span class="credit-sep">×</span>
+          <a href="https://sinliongtoo.github.io/hantsia-taigi/" target="_blank" rel="noopener" class="credit-link">杜信龍《番薯仔大冒險》</a>
+          <span class="credit-sep">×</span>
+          <span class="credit-plain">CAPCOM《快打旋風》</span>
         </div>
       </div>
 
@@ -210,6 +221,40 @@
         <button id="btnBackToMenuWin" class="sf-btn" onclick="window.game.showScreen('titleScreen')">
           重返街機大廳
         </button>
+      </div>
+
+      <!-- 7. About & Credits Modal Overlay -->
+      <div id="aboutOverlay" class="overlay-screen hidden">
+        <div class="about-panel">
+          <div class="about-header">
+            <h2 class="about-title">⚡ 致敬與靈感來源 (Credits & Inspiration) ⚡</h2>
+            <button id="btnCloseAbout" class="arcade-tool-btn">✕ 關閉</button>
+          </div>
+          <div class="about-body">
+            <div class="about-card">
+              <div class="about-card-title">📖 教育部臺灣台語推薦用字 700 詞單字卡 (Taigi 700)</div>
+              <div class="about-card-author">作者：Howmay W.</div>
+              <div class="about-card-desc">700 詞常用字庫、臺灣閩南語羅馬字標音（臺羅/POJ）、例句與發音音訊索引對照整理來源。</div>
+              <a href="https://howmay-w.github.io/taigi700/" target="_blank" rel="noopener" class="about-link">🔗 造訪 Howmay W.《台語700》</a>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🍠 番薯仔大冒險 (Hantsia Taigi)</div>
+              <div class="about-card-author">作者：杜信龍 (SinLiongToo)</div>
+              <div class="about-card-desc">本土台灣文化台語拼音闖關動作遊戲理念、街機關卡互動設計與在地文化結合之啟發。</div>
+              <a href="https://sinliongtoo.github.io/hantsia-taigi/" target="_blank" rel="noopener" class="about-link">🔗 造訪 杜信龍《番薯仔大冒險》</a>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🥋 經典街機快打旋風 (Street Fighter Series)</div>
+              <div class="about-card-author">原創版權：CAPCOM</div>
+              <div class="about-card-desc">90 年代 16-bit CPS2 大型機台格鬥遊戲美學、雙人血條延遲扣血殘影、99 秒計時器、K.O. 慢動作、波動拳、昇龍拳、旋風腿與 EX 超必殺技系統。</div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🏛️ 教育部臺灣台語常用詞辭典</div>
+              <div class="about-card-author">中華民國教育部</div>
+              <div class="about-card-desc">臺灣台語推薦用字標準字形、正統聲調標音與教育部真人發音原聲串流。</div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 

@@ -121,6 +121,17 @@ class TaigiFighterGame {
       this.returnToTitle();
     });
 
+    // About & Credits Modal
+    document.getElementById('btnShowAbout')?.addEventListener('click', () => {
+      this.audio.playSelect();
+      this.showScreen('aboutOverlay');
+    });
+
+    document.getElementById('btnCloseAbout')?.addEventListener('click', () => {
+      this.audio.playSelect();
+      this.showScreen('titleScreen');
+    });
+
     // Start Arcade Button
     document.getElementById('btnStartArcade')?.addEventListener('click', () => {
       this.audio.playCoin();
@@ -283,7 +294,7 @@ class TaigiFighterGame {
   }
 
   showScreen(screenId) {
-    const screens = ['titleScreen', 'vsScreen', 'hudOverlay', 'dojoOverlay', 'continueOverlay', 'winOverlay'];
+    const screens = ['titleScreen', 'vsScreen', 'hudOverlay', 'dojoOverlay', 'continueOverlay', 'winOverlay', 'aboutOverlay'];
     screens.forEach(s => {
       const el = document.getElementById(s);
       if (el) el.classList.add('hidden');
