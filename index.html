@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>台語快打旋風 700 - 臺灣推薦用字大對決 (TAIGI FIGHTER 700)</title>
+  <meta name="description" content="教育部臺灣台語推薦用字 700 詞復古快打旋風街機格鬥學習遊戲！聽音辨字、羅馬字對決、出拳連擊擊倒各路擂台擂主！">
+
+  <!-- Authentic Taiwanese Fonts & Retro Font Links -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Charis+SIL:ital,wght@0,700;1,700&family=Noto+Sans+TC:wght@400;700;900&family=Iansui&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Retro Arcade Machine Cabinet Frame -->
+  <div id="arcadeWrapper">
+
+    <!-- Arcade Header Marquee with Glowing Backlight -->
+    <header id="arcadeMarquee">
+      <div class="marquee-logo-group">
+        <span class="marquee-sub">TAIWAN CAPCOM ARCADE</span>
+        <div class="marquee-title">⚡ 台語快打旋風 700 ⚡</div>
+      </div>
+      <div class="marquee-tools">
+        <button id="btnReturnHome" class="arcade-tool-btn home-btn" title="回主畫面 (ESC)">🏠 回主畫面</button>
+        <button id="btnToggleBGM" class="arcade-tool-btn active">🎵 BGM: 開</button>
+        <button id="btnToggleSFX" class="arcade-tool-btn active">🔊 音效: 開</button>
+        <button id="btnToggleCRT" class="arcade-tool-btn active">📺 CRT: 開</button>
+      </div>
+    </header>
+
+    <!-- Game Viewport (Canvas + HTML Overlays) -->
+    <main id="gameViewport">
+      <!-- 60FPS 2D Retro Canvas -->
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+      <!-- 1. Title Screen Overlay -->
+      <div id="titleScreen" class="overlay-screen">
+        <div class="sf-title-logo">
+          <div class="sf-title-sub">★ CAPCOM ARCADE EDITION ★</div>
+          <h1 class="sf-title-main">台語快打旋風</h1>
+          <div class="sf-title-edition">700 推薦用字・全台擂台爭霸</div>
+        </div>
+
+        <div class="arcade-menu-group">
+          <button id="btnStartArcade" class="sf-btn">
+            <span class="btn-icon">🥊</span>
+            <span class="btn-text">投幣開戰 (ARCADE STORY)</span>
+          </button>
+          <button id="btnStartDojo" class="sf-btn secondary">
+            <span class="btn-icon">🏯</span>
+            <span class="btn-text">街頭修練館 (DOJO TRAINING)</span>
+          </button>
+          <button id="btnStartSurvival" class="sf-btn gold">
+            <span class="btn-icon">🔥</span>
+            <span class="btn-text">無盡生存戰 (SURVIVAL MODE)</span>
+          </button>
+        </div>
+
+        <div class="coin-prompt">
+          <span class="coin-blink">INSERT COIN</span>
+          <span class="coin-tip">按 1 或 空白鍵 直接開始</span>
+        </div>
+      </div>
+
+      <!-- 2. VS Confrontation Screen Overlay -->
+      <div id="vsScreen" class="overlay-screen hidden">
+        <div class="vs-header">
+          <div id="vsStageLocation" class="vs-location-badge">台南・大東夜市</div>
+        </div>
+
+        <div class="vs-fighters-container">
+          <!-- 1P -->
+          <div class="vs-fighter-card">
+            <div class="vs-avatar-box p1-glow">🥋</div>
+            <div id="vsP1Name" class="vs-name">阿龍</div>
+            <div id="vsP1Title" class="vs-sub">台語拳豪</div>
+          </div>
+
+          <div class="vs-emblem">VS</div>
+
+          <!-- 2P -->
+          <div class="vs-fighter-card">
+            <div class="vs-avatar-box p2-glow">🦹</div>
+            <div id="vsP2Name" class="vs-name">火雞哥</div>
+            <div id="vsP2Title" class="vs-sub">夜市霸王</div>
+          </div>
+        </div>
+
+        <div id="vsEnemyQuote" class="vs-dialogue">
+          「想佇我的地頭逞英雄？先食我一碗火雞肉飯閣來啦！」
+        </div>
+      </div>
+
+      <!-- 3. Fighting HUD Overlay -->
+      <div id="hudOverlay" class="hidden">
+        <div class="hud-top-bar">
+          <!-- 1P HP Unit -->
+          <div class="fighter-hud-box p1-hud">
+            <div class="fighter-portrait-hud p1-border">🥋</div>
+            <div class="hp-info-col">
+              <div class="fighter-name-row">
+                <span id="hudP1Name" class="p1-name">阿龍</span>
+                <span id="p1Wins" class="wins-marker">○ ○</span>
+              </div>
+              <div class="hp-bar-frame">
+                <div id="p1HpDamage" class="hp-bar-damage" style="width: 100%;"></div>
+                <div id="p1HpFill" class="hp-bar-fill" style="width: 100%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center Arcade Timer & KO Badge -->
+          <div class="timer-center-unit">
+            <div class="ko-badge-top">KO</div>
+            <div id="arcadeTimer" class="timer-box">99</div>
+          </div>
+
+          <!-- 2P HP Unit -->
+          <div class="fighter-hud-box p2-hud">
+            <div class="hp-info-col">
+              <div class="fighter-name-row p2-row">
+                <span id="p2Wins" class="wins-marker">○ ○</span>
+                <span id="hudP2Name" class="p2-name">火雞哥</span>
+              </div>
+              <div class="hp-bar-frame">
+                <div id="p2HpDamage" class="hp-bar-damage p2-bar" style="width: 100%;"></div>
+                <div id="p2HpFill" class="hp-bar-fill p2-bar" style="width: 100%;"></div>
+              </div>
+            </div>
+            <div class="fighter-portrait-hud p2-border">🦹</div>
+          </div>
+        </div>
+
+        <!-- Super Meter & Combo Count & Score -->
+        <div class="super-meter-container">
+          <div class="super-label-badge">SUPER COMBO</div>
+          <div class="super-bar-frame">
+            <div id="superMeterFill" class="super-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div id="superMeterText" class="super-text-status">EX: 0%</div>
+          <div id="comboBadge" class="combo-badge hidden">2 HITS!</div>
+          <div class="score-display-box">
+            <span class="score-label">SCORE:</span>
+            <span id="currentScoreText" class="score-num">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Dojo Training Mode Overlay -->
+      <div id="dojoOverlay" class="overlay-screen hidden">
+        <div class="dojo-panel">
+          <div class="dojo-title-bar">
+            <div class="dojo-title-group">
+              <span class="dojo-badge">DOJO MASTER</span>
+              <h2 class="dojo-heading">街頭修練館・教育部 700 推薦用字</h2>
+            </div>
+            <button id="btnBackToMenu" class="arcade-tool-btn">返回主畫面</button>
+          </div>
+
+          <div class="search-input-wrapper">
+            <input type="text" id="dojoSearchInput" class="dojo-search-bar" placeholder="🔍 輸入漢字、臺羅拼音（如 a-kīm）或華語釋義...">
+          </div>
+
+          <div class="dojo-card-content">
+            <div id="dojoWordHanzi" class="dojo-hanzi">阿妗</div>
+            <div id="dojoWordTailo" class="dojo-tailo">a-kīm</div>
+            <div id="dojoWordMean" class="dojo-mean">華語釋義：舅媽</div>
+            <div id="dojoWordSample" class="dojo-sample">例句：阮阿舅佮～咧做生理</div>
+          </div>
+
+          <div id="dojoCounter" class="dojo-counter-text">
+            1 / 700 (編號 #2)
+          </div>
+
+          <div class="dojo-controls-row">
+            <button id="btnDojoPrev" class="sf-btn secondary small-btn">◀ 上一詞</button>
+            <button id="btnDojoAudio" class="sf-btn gold small-btn">🔊 真人發音</button>
+            <button id="btnDojoHit" class="sf-btn small-btn">💥 打木人樁</button>
+            <button id="btnDojoNext" class="sf-btn secondary small-btn">下一詞 ▶</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Continue / Game Over Screen Overlay -->
+      <div id="continueOverlay" class="overlay-screen hidden">
+        <div class="game-over-banner">GAME OVER</div>
+        <div class="continue-title">CONTINUE?</div>
+        <div id="continueCountdown" class="continue-countdown">9</div>
+        <div class="continue-btn-group">
+          <button id="btnContinueYes" class="sf-btn">繼續投幣 (YES)</button>
+          <button id="btnBackToMenuFromContinue" class="sf-btn secondary" onclick="window.game.showScreen('titleScreen')">回主畫面 (NO)</button>
+        </div>
+      </div>
+
+      <!-- 6. Victory Champion Screen Overlay -->
+      <div id="winOverlay" class="overlay-screen hidden">
+        <div class="win-crown-icon">👑</div>
+        <div class="win-banner">YOU ARE THE CHAMPION!</div>
+        <div class="win-subheading">
+          制霸全台四大經典擂台！台語推薦用字七百字融會貫通！
+        </div>
+        <div class="win-stats-box">
+          <span class="win-score-label">FINAL SCORE</span>
+          <span id="finalScoreText" class="win-score-val">0</span>
+        </div>
+        <button id="btnBackToMenuWin" class="sf-btn" onclick="window.game.showScreen('titleScreen')">
+          重返街機大廳
+        </button>
+      </div>
+    </main>
+
+    <!-- Bottom Question / Fighting Clash Choice Box -->
+    <section id="questionBox" class="hidden">
+      <div class="q-header-row">
+        <span id="qAttackBadge" class="q-attack-badge">👊 輕拳出招：依拼音選漢字</span>
+        <button id="btnReplayAudio" class="replay-audio-btn">🔊 重播語音 (R)</button>
+      </div>
+
+      <div class="q-prompt-box">
+        <div id="qPromptText" class="q-prompt-text">「a-kīm」</div>
+        <div id="qSubText" class="q-sub-text">華語提示：舅媽</div>
+      </div>
+
+      <div class="arcade-options-grid">
+        <button id="optBtn0" class="arcade-opt-btn btn-a">A. 阿妗</button>
+        <button id="optBtn1" class="arcade-opt-btn btn-b">B. 阿姨</button>
+        <button id="optBtn2" class="arcade-opt-btn btn-c">C. 阿姑</button>
+        <button id="optBtn3" class="arcade-opt-btn btn-d">D. 阿母</button>
+      </div>
+    </section>
+
+    <!-- Mobile Virtual Arcade Touch Pad -->
+    <nav id="arcadePad" class="hidden">
+      <!-- Left 8-Way Joystick -->
+      <div class="virtual-stick">
+        <div class="stick-knob"></div>
+      </div>
+
+      <!-- Right 4 Capcom Arcade Buttons + Super -->
+      <div class="virtual-buttons">
+        <button id="btnPadA" class="pad-btn a" title="A Button">A</button>
+        <button id="btnPadB" class="pad-btn b" title="B Button">B</button>
+        <button id="btnPadC" class="pad-btn c" title="C Button">C</button>
+        <button id="btnPadD" class="pad-btn d" title="D Button">D</button>
+        <button id="btnPadSuper" class="pad-btn super" title="SUPER COMBO">EX</button>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- Game Scripts -->
+  <script src="js/words_data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
