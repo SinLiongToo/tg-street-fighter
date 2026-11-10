@@ -104,6 +104,17 @@ class TaigiFighterGame {
     this.renderer = new ArcadeRenderer(canvas);
     this.audio.init();
 
+    // Global user-interaction audio unlock for Apple iOS / Mobile WebKit
+    const unlockAudio = () => {
+      this.audio.init();
+      ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown'].forEach(evt => {
+        window.removeEventListener(evt, unlockAudio);
+      });
+    };
+    ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, unlockAudio, { passive: true, once: true });
+    });
+
     // DOM UI bindings
     this.bindEvents();
 

@@ -30,6 +30,10 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: -webkit-fill-available;
+  height: 100dvh;
   background: var(--arcade-bg);
   background-image: 
     radial-gradient(circle at 50% 20%, #1e0e38 0%, #06020c 80%),
@@ -41,6 +45,8 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* ==========================================================
@@ -51,6 +57,7 @@ html, body {
   width: 100%;
   max-width: 1020px;
   height: 100%;
+  height: 100dvh;
   max-height: 740px;
   display: flex;
   flex-direction: column;
@@ -62,6 +69,7 @@ html, body {
     0 0 25px rgba(123, 31, 162, 0.5),
     inset 0 0 20px rgba(0, 0, 0, 0.8);
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* Arcade Marquee Header */
@@ -140,7 +148,9 @@ html, body {
 #gameViewport {
   position: relative;
   width: 100%;
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0; /* CRITICAL FOR SAFARI FLEXBOX COMPLIANCE */
+  min-width: 0;  /* CRITICAL FOR SAFARI FLEXBOX COMPLIANCE */
   background: #000;
   overflow: hidden;
   display: flex;
@@ -149,8 +159,11 @@ html, body {
 }
 
 #gameCanvas {
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  aspect-ratio: 16 / 9;
   object-fit: contain;
   display: block;
 }
@@ -164,9 +177,13 @@ html, body {
   align-items: center;
   justify-content: center;
   z-index: 10;
-  background: rgba(8, 4, 18, 0.9);
+  background: rgba(8, 4, 18, 0.92);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   transition: opacity 0.25s ease;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .hidden {
@@ -196,15 +213,16 @@ html, body {
 }
 
 .sf-title-main {
-  font-size: clamp(34px, 7vw, 68px);
+  font-size: clamp(32px, 6.5vw, 64px);
   font-weight: 900;
   letter-spacing: 2px;
-  color: #fff;
+  color: var(--arcade-gold);
   text-transform: uppercase;
   background: linear-gradient(180deg, #ffffff 0%, #fff176 30%, var(--arcade-gold) 50%, #ff5722 80%, #b71c1c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(4px 4px 0px #000) drop-shadow(0 0 25px rgba(255, 87, 34, 0.9));
+  /* Safe text shadow without crashing iOS WebKit with filter drop-shadow */
+  text-shadow: 0 0 20px rgba(255, 87, 34, 0.7);
   margin: 0;
   line-height: 1.1;
 }
@@ -1214,4 +1232,379 @@ html, body {
   text-decoration: underline;
   color: #fff;
   text-shadow: 0 0 8px var(--arcade-cyan);
+}
+
+/* ==========================================================
+   Mobile Landscape Mode (手機橫式專用佈局 - 徹底解決畫面切到問題)
+   ========================================================== */
+@media screen and (orientation: landscape) and (max-height: 550px) {
+  #arcadeWrapper {
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
+    padding-top: env(safe-area-inset-top) !important;
+    padding-bottom: max(2px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Slim Marquee in Landscape */
+  #arcadeMarquee {
+    height: 32px !important;
+    padding: 0 10px !important;
+  }
+
+  .marquee-sub {
+    display: none !important;
+  }
+
+  .marquee-title {
+    font-size: 13px !important;
+  }
+
+  .arcade-tool-btn {
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+  }
+
+  /* HUD in Landscape */
+  .hud-top-bar {
+    padding: 4px 10px !important;
+  }
+
+  .fighter-portrait-hud {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 16px !important;
+  }
+
+  .fighter-name-row {
+    font-size: 11px !important;
+  }
+
+  .hp-bar-frame {
+    height: 14px !important;
+  }
+
+  .timer-center-unit {
+    margin: 0 8px !important;
+  }
+
+  .timer-box {
+    width: 48px !important;
+    height: 32px !important;
+    font-size: 22px !important;
+  }
+
+  .ko-badge-top {
+    font-size: 9px !important;
+    padding: 0 4px !important;
+  }
+
+  .super-meter-container {
+    padding: 2px 10px !important;
+    gap: 6px !important;
+  }
+
+  .super-label-badge {
+    font-size: 9px !important;
+    padding: 1px 4px !important;
+  }
+
+  .super-bar-frame {
+    max-width: 140px !important;
+    height: 10px !important;
+  }
+
+  .super-text-status {
+    font-size: 10px !important;
+    min-width: 50px !important;
+  }
+
+  .combo-badge {
+    font-size: 13px !important;
+    padding: 1px 8px !important;
+  }
+
+  .score-display-box {
+    font-size: 11px !important;
+  }
+
+  /* Question Deck in Landscape (Compact Bottom Bar) */
+  #questionBox {
+    padding: 4px 10px 6px !important;
+    border-top-width: 2px !important;
+  }
+
+  .q-header-row {
+    margin-bottom: 2px !important;
+  }
+
+  .q-attack-badge {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+
+  .replay-audio-btn {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+
+  .q-prompt-box {
+    margin-bottom: 4px !important;
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: center !important;
+    gap: 8px !important;
+  }
+
+  .q-prompt-text {
+    font-size: 18px !important;
+  }
+
+  .q-sub-text {
+    font-size: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  /* 4 options in 1 horizontal row in landscape so it never steals vertical height! */
+  .arcade-options-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .arcade-opt-btn {
+    font-size: 13px !important;
+    padding: 6px 8px !important;
+    border-width: 1.5px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Hide bulky arcade pad in landscape so options are tapped directly */
+  #arcadePad {
+    display: none !important;
+  }
+
+  /* Title Screen in Landscape */
+  #titleScreen {
+    padding: 10px 16px !important;
+    justify-content: center !important;
+  }
+
+  .sf-title-logo {
+    margin-bottom: 6px !important;
+  }
+
+  .sf-title-sub {
+    font-size: 11px !important;
+    letter-spacing: 2px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .sf-title-main {
+    font-size: 26px !important;
+  }
+
+  .sf-title-edition {
+    font-size: 12px !important;
+    margin-top: 2px !important;
+  }
+
+  .arcade-menu-group {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    max-width: 600px !important;
+    margin-top: 8px !important;
+  }
+
+  .sf-btn {
+    font-size: 13px !important;
+    padding: 7px 14px !important;
+    border-width: 2px !important;
+  }
+
+  .coin-prompt {
+    margin-top: 6px !important;
+  }
+
+  .coin-blink {
+    font-size: 13px !important;
+  }
+
+  .source-credits-bar {
+    margin-top: 6px !important;
+    padding: 3px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* VS Screen in Landscape */
+  #vsScreen {
+    padding: 10px 16px !important;
+  }
+
+  .vs-avatar-box {
+    width: 64px !important;
+    height: 64px !important;
+    font-size: 32px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .vs-name {
+    font-size: 18px !important;
+  }
+
+  .vs-sub {
+    font-size: 12px !important;
+  }
+
+  .vs-emblem {
+    font-size: 40px !important;
+    padding: 0 12px !important;
+  }
+
+  .vs-dialogue {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* Dojo Screen in Landscape */
+  #dojoOverlay {
+    padding: 8px !important;
+  }
+
+  .dojo-panel {
+    padding: 12px !important;
+    max-height: 94vh !important;
+  }
+
+  .dojo-heading {
+    font-size: 16px !important;
+  }
+
+  .dojo-card-content {
+    padding: 8px 12px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .dojo-hanzi {
+    font-size: 34px !important;
+  }
+
+  .dojo-tailo {
+    font-size: 16px !important;
+    margin-top: 2px !important;
+  }
+
+  .dojo-mean {
+    font-size: 13px !important;
+    margin-top: 4px !important;
+  }
+
+  .dojo-sample {
+    font-size: 12px !important;
+    margin-top: 3px !important;
+  }
+
+  .dojo-counter-text {
+    font-size: 12px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .small-btn {
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+  }
+}
+
+/* ==========================================================
+   Mobile Portrait Mode (手機直式專用佈局)
+   ========================================================== */
+@media screen and (orientation: portrait) and (max-width: 600px) {
+  #arcadeWrapper {
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding-top: env(safe-area-inset-top) !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+
+  #arcadeMarquee {
+    height: 40px !important;
+    padding: 0 10px !important;
+  }
+
+  .marquee-title {
+    font-size: 15px !important;
+  }
+
+  .marquee-sub {
+    display: none !important;
+  }
+
+  .arcade-tool-btn {
+    padding: 3px 8px !important;
+    font-size: 12px !important;
+  }
+
+  .fighter-portrait-hud {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 18px !important;
+  }
+
+  .hp-bar-frame {
+    height: 16px !important;
+  }
+
+  .timer-box {
+    width: 54px !important;
+    height: 38px !important;
+    font-size: 26px !important;
+  }
+
+  .q-prompt-text {
+    font-size: 22px !important;
+  }
+
+  .arcade-options-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .arcade-opt-btn {
+    font-size: 15px !important;
+    padding: 9px 10px !important;
+  }
+
+  /* Compact Arcade Pad on Portrait */
+  #arcadePad {
+    padding: 6px 12px !important;
+  }
+
+  .virtual-stick {
+    width: 58px !important;
+    height: 58px !important;
+  }
+
+  .stick-knob {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .pad-btn {
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 15px !important;
+  }
+
+  .pad-btn.super {
+    width: 48px !important;
+    height: 48px !important;
+  }
 }

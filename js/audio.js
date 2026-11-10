@@ -18,15 +18,16 @@ class ArcadeAudioManager {
   }
 
   init() {
-    if (this.unlocked && this.ctx) return;
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
-        this.ctx = new AudioCtx();
+        if (!this.ctx) {
+          this.ctx = new AudioCtx();
+        }
         if (this.ctx.state === 'suspended') {
           this.ctx.resume();
         }
-        this.unlocked = true;
+        this.unlocked = (this.ctx.state === 'running');
       }
     } catch (e) {
       console.warn('AudioContext not available:', e);

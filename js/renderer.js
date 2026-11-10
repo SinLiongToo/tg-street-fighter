@@ -905,8 +905,14 @@ class ArcadeRenderer {
     ctx.translate(p.x, p.y);
 
     const isHit = p.state === 'hit';
+    let filterApplied = false;
     if (isHit && Math.floor(this.time / 2) % 2 === 0) {
-      ctx.filter = 'brightness(3) contrast(1.5)';
+      try {
+        if ('filter' in ctx) {
+          ctx.filter = 'brightness(2.5)';
+          filterApplied = true;
+        }
+      } catch (err) {}
     }
 
     const bounce = (p.state === 'idle') ? Math.sin(this.time * 0.16) * 5 : 0;
@@ -1087,6 +1093,9 @@ class ArcadeRenderer {
       }
     }
 
+    if (filterApplied) {
+      try { ctx.filter = 'none'; } catch (err) {}
+    }
     ctx.restore();
   }
 
@@ -1097,8 +1106,14 @@ class ArcadeRenderer {
     ctx.scale(-1, 1); // Face left towards player
 
     const isHit = e.state === 'hit';
+    let filterApplied = false;
     if (isHit && Math.floor(this.time / 2) % 2 === 0) {
-      ctx.filter = 'brightness(3) contrast(1.5)';
+      try {
+        if ('filter' in ctx) {
+          ctx.filter = 'brightness(2.5)';
+          filterApplied = true;
+        }
+      } catch (err) {}
     }
 
     const bounce = (e.state === 'idle') ? Math.sin(this.time * 0.14) * 5 : 0;
@@ -1211,6 +1226,9 @@ class ArcadeRenderer {
     ctx.fillStyle = hasAura ? '#ff0055' : '#000';
     ctx.fillRect(6, -128 + bounce, 7, 5);
 
+    if (filterApplied) {
+      try { ctx.filter = 'none'; } catch (err) {}
+    }
     ctx.restore();
   }
 
