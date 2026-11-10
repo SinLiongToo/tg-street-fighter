@@ -1629,21 +1629,39 @@ html, body {
   }
 
   #arcadeMarquee {
-    height: 38px !important;
-    padding: 0 10px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 6px !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .marquee-logo-group {
+    flex-shrink: 1 !important;
+    overflow: hidden !important;
   }
 
   .marquee-title {
-    font-size: 15px !important;
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .marquee-sub {
     display: none !important;
   }
 
+  .marquee-tools {
+    gap: 3px !important;
+    flex-shrink: 0 !important;
+  }
+
   .arcade-tool-btn {
-    padding: 3px 8px !important;
-    font-size: 12px !important;
+    padding: 2px 5px !important;
+    font-size: 11px !important;
+    height: 24px !important;
+    white-space: nowrap !important;
   }
 
   #battleArena {
@@ -1664,6 +1682,27 @@ html, body {
   #questionBox {
     flex: none !important;
     width: 100% !important;
+  }
+
+  .hud-top-bar {
+    padding: 4px 6px !important;
+  }
+
+  .fighter-hud-box {
+    gap: 6px !important;
+  }
+
+  .fighter-name-row {
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  .p1-name, .p2-name {
+    display: inline-block !important;
+    max-width: 85px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .fighter-portrait-hud {
