@@ -143,6 +143,20 @@ html, body {
 }
 
 /* ==========================================================
+   Battle Arena Container (Split in Landscape, Stack in Portrait)
+   ========================================================== */
+#battleArena {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ==========================================================
    Game Viewport (16:9 Canvas + HUD)
    ========================================================== */
 #gameViewport {
@@ -1235,24 +1249,34 @@ html, body {
 }
 
 /* ==========================================================
-   Mobile Landscape Mode (手機橫式專用佈局 - 徹底解決畫面切到問題)
+   Mobile Landscape Mode (手機橫式 2-Column Split 專用佈局 - 徹底解決畫面切到問題)
    ========================================================== */
-@media screen and (orientation: landscape) and (max-height: 550px) {
+@media screen and (orientation: landscape) and (max-height: 650px),
+       screen and (min-aspect-ratio: 13/10) and (max-height: 650px) {
   #arcadeWrapper {
     max-height: 100dvh !important;
     height: 100dvh !important;
     border: none !important;
     border-radius: 0 !important;
-    padding-left: max(10px, env(safe-area-inset-left)) !important;
-    padding-right: max(10px, env(safe-area-inset-right)) !important;
+    padding-left: max(8px, env(safe-area-inset-left)) !important;
+    padding-right: max(8px, env(safe-area-inset-right)) !important;
     padding-top: env(safe-area-inset-top) !important;
     padding-bottom: max(2px, env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
   }
 
-  /* Slim Marquee in Landscape */
+  /* Slim Single-Line Marquee Header */
   #arcadeMarquee {
-    height: 32px !important;
-    padding: 0 10px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 8px !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .marquee-logo-group {
+    flex-shrink: 1 !important;
+    overflow: hidden !important;
   }
 
   .marquee-sub {
@@ -1261,16 +1285,143 @@ html, body {
 
   .marquee-title {
     font-size: 13px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .marquee-tools {
+    gap: 4px !important;
+    flex-shrink: 0 !important;
   }
 
   .arcade-tool-btn {
-    padding: 2px 7px !important;
+    padding: 2px 6px !important;
     font-size: 11px !important;
+    height: 24px !important;
+    white-space: nowrap !important;
+  }
+
+  /* 2-Column Battle Arena: Left = 16:9 Canvas Stage, Right = Action Deck */
+  #battleArena {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: calc(100% - 30px) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Left Side: Canvas Viewport (Takes full height, 16:9 ratio maintained) */
+  #gameViewport {
+    flex: 1 1 62% !important;
+    height: 100% !important;
+    width: auto !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    background: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+  }
+
+  #gameCanvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9 !important;
+    object-fit: contain !important;
+    display: block !important;
+  }
+
+  /* Right Side: Dedicated Action Deck (Right thumb touch zone) */
+  #questionBox {
+    width: clamp(250px, 37vw, 360px) !important;
+    height: 100% !important;
+    flex: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    padding: 6px 12px 10px !important;
+    border-top: none !important;
+    border-left: 3px solid #7c4dff !important;
+    background: linear-gradient(180deg, #1e0e38 0%, #0b0416 100%) !important;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.7) !important;
+    z-index: 15 !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* When questionBox is hidden (Title, VS, Dojo), Viewport fills 100% */
+  #questionBox.hidden {
+    display: none !important;
+  }
+
+  .q-header-row {
+    margin-bottom: 3px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .q-attack-badge {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+
+  .replay-audio-btn {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+
+  .q-prompt-box {
+    margin-bottom: 4px !important;
+    text-align: center !important;
+  }
+
+  .q-prompt-text {
+    font-size: clamp(16px, 2.5vw, 22px) !important;
+    line-height: 1.2 !important;
+  }
+
+  .q-sub-text {
+    font-size: 12px !important;
+    margin-top: 2px !important;
+  }
+
+  /* 4 Vertical Action Buttons on the Right Side */
+  .arcade-options-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    flex: 1 !important;
+    justify-content: space-evenly !important;
+    margin-top: 4px !important;
+  }
+
+  .arcade-opt-btn {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+    white-space: normal !important;
+    line-height: 1.2 !important;
+    border-radius: 6px !important;
+    border-width: 2px !important;
+    box-shadow: 0 2px 0 #110722 !important;
+  }
+
+  /* Hide bulky bottom pad in landscape */
+  #arcadePad {
+    display: none !important;
   }
 
   /* HUD in Landscape */
   .hud-top-bar {
-    padding: 4px 10px !important;
+    padding: 4px 8px !important;
   }
 
   .fighter-portrait-hud {
@@ -1288,23 +1439,23 @@ html, body {
   }
 
   .timer-center-unit {
-    margin: 0 8px !important;
+    margin: 0 6px !important;
   }
 
   .timer-box {
-    width: 48px !important;
-    height: 32px !important;
-    font-size: 22px !important;
+    width: 44px !important;
+    height: 30px !important;
+    font-size: 20px !important;
   }
 
   .ko-badge-top {
-    font-size: 9px !important;
+    font-size: 8px !important;
     padding: 0 4px !important;
   }
 
   .super-meter-container {
-    padding: 2px 10px !important;
-    gap: 6px !important;
+    padding: 2px 8px !important;
+    gap: 5px !important;
   }
 
   .super-label-badge {
@@ -1313,79 +1464,22 @@ html, body {
   }
 
   .super-bar-frame {
-    max-width: 140px !important;
-    height: 10px !important;
+    max-width: 110px !important;
+    height: 9px !important;
   }
 
   .super-text-status {
     font-size: 10px !important;
-    min-width: 50px !important;
+    min-width: 45px !important;
   }
 
   .combo-badge {
-    font-size: 13px !important;
-    padding: 1px 8px !important;
+    font-size: 12px !important;
+    padding: 1px 6px !important;
   }
 
   .score-display-box {
     font-size: 11px !important;
-  }
-
-  /* Question Deck in Landscape (Compact Bottom Bar) */
-  #questionBox {
-    padding: 4px 10px 6px !important;
-    border-top-width: 2px !important;
-  }
-
-  .q-header-row {
-    margin-bottom: 2px !important;
-  }
-
-  .q-attack-badge {
-    font-size: 11px !important;
-    padding: 2px 8px !important;
-  }
-
-  .replay-audio-btn {
-    font-size: 11px !important;
-    padding: 2px 8px !important;
-  }
-
-  .q-prompt-box {
-    margin-bottom: 4px !important;
-    display: flex !important;
-    align-items: baseline !important;
-    justify-content: center !important;
-    gap: 8px !important;
-  }
-
-  .q-prompt-text {
-    font-size: 18px !important;
-  }
-
-  .q-sub-text {
-    font-size: 12px !important;
-    margin-top: 0 !important;
-  }
-
-  /* 4 options in 1 horizontal row in landscape so it never steals vertical height! */
-  .arcade-options-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 6px !important;
-  }
-
-  .arcade-opt-btn {
-    font-size: 13px !important;
-    padding: 6px 8px !important;
-    border-width: 1.5px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-  }
-
-  /* Hide bulky arcade pad in landscape so options are tapped directly */
-  #arcadePad {
-    display: none !important;
   }
 
   /* Title Screen in Landscape */
@@ -1405,7 +1499,7 @@ html, body {
   }
 
   .sf-title-main {
-    font-size: 26px !important;
+    font-size: 24px !important;
   }
 
   .sf-title-edition {
@@ -1418,7 +1512,7 @@ html, body {
     flex-wrap: wrap !important;
     justify-content: center !important;
     gap: 8px !important;
-    max-width: 600px !important;
+    max-width: 580px !important;
     margin-top: 8px !important;
   }
 
@@ -1448,23 +1542,23 @@ html, body {
   }
 
   .vs-avatar-box {
-    width: 64px !important;
-    height: 64px !important;
-    font-size: 32px !important;
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 30px !important;
     margin-bottom: 4px !important;
   }
 
   .vs-name {
-    font-size: 18px !important;
+    font-size: 17px !important;
   }
 
   .vs-sub {
-    font-size: 12px !important;
+    font-size: 11px !important;
   }
 
   .vs-emblem {
-    font-size: 40px !important;
-    padding: 0 12px !important;
+    font-size: 36px !important;
+    padding: 0 10px !important;
   }
 
   .vs-dialogue {
@@ -1535,7 +1629,7 @@ html, body {
   }
 
   #arcadeMarquee {
-    height: 40px !important;
+    height: 38px !important;
     padding: 0 10px !important;
   }
 
@@ -1550,6 +1644,26 @@ html, body {
   .arcade-tool-btn {
     padding: 3px 8px !important;
     font-size: 12px !important;
+  }
+
+  #battleArena {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #gameViewport {
+    flex: 1 1 auto !important;
+    min-height: 190px !important;
+    width: 100% !important;
+  }
+
+  #questionBox {
+    flex: none !important;
+    width: 100% !important;
   }
 
   .fighter-portrait-hud {
