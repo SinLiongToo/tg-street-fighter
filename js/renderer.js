@@ -31,6 +31,12 @@ class ArcadeRenderer {
     // CRT scanline overlay state
     this.crtEnabled = true;
 
+    // Pixel-art mode: world rendered at half resolution, upscaled crisp
+    this.pixelMode = true;
+    this.pixelScale = 0.5;
+    this.lowCanvas = null;
+    this.lowCtx = null;
+
     // Hit-stop (freeze frames on impact) & per-fighter pose animation state
     this.hitstop = 0;
     this.fighterRefs = null;
@@ -92,91 +98,75 @@ class ArcadeRenderer {
   // and smooth blending back to idle.
 
   createAnimState() {
-    return { state: null, t: 0, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, drawState: 'idle', ghosts: [] };
+    return { state: null, t: 0, dx: 0, dy: 0, rot: 0, ghosts: [] };
   }
 
+  // Root motion for each state (the body pose itself comes from the
+  // limited-frame rig in js/fighters.js). Attacks dash in to make contact,
+  // then hop back to their starting spot.
   poseTarget(state, t) {
     const clamp01 = v => Math.max(0, Math.min(1, v));
     const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
     const easeIn = v => Math.pow(clamp01(v), 2);
-    const p = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, snap: false, ghost: false, drawState: state };
+    const p = { dx: 0, dy: 0, rot: 0, snap: true, ghost: false };
+
+    // Shared dash-in / hold / hop-back curve
+    const dashAttack = (reach, windup, hitEnd, backEnd) => {
+      if (t < windup) {
+        p.dx = -6;
+      } else if (t < hitEnd) {
+        p.dx = -6 + (reach + 6) * easeOut((t - windup) / 5);
+        p.ghost = t < windup + 8;
+      } else if (t < backEnd) {
+        const u = (t - hitEnd) / (backEnd - hitEnd);
+        p.dx = reach * (1 - easeOut(u));
+        p.dy = -22 * Math.sin(Math.PI * u);
+      }
+    };
 
     switch (state) {
       case 'punch_light':
       case 'punch_heavy':
-      case 'kick':
-      case 'punch': {
-        const heavy = state === 'punch_heavy' || state === 'punch';
-        const reach = heavy ? 46 : (state === 'kick' ? 30 : 24);
-        const windup = 4;
-        if (t < windup) {
-          // Anticipation: pull back and coil before the strike
-          const u = t / windup;
-          p.dx = -10 * u;
-          p.rot = -0.07 * u;
-          p.sx = 1 - 0.05 * u;
-          p.sy = 1 + 0.04 * u;
-          p.drawState = 'idle';
-        } else {
-          const k = easeOut((t - windup) / 5);
-          p.dx = -10 + (reach + 10) * k;
-          p.rot = -0.07 + 0.17 * k;
-          // Stretch into the strike, then settle
-          const s = Math.max(0, 1 - (t - windup) / 8);
-          p.sx = 1 + 0.08 * s;
-          p.sy = 1 - 0.05 * s;
-        }
-        p.snap = true;
-        p.ghost = heavy && t >= windup && t < windup + 10;
+      case 'punch':
+        dashAttack(180, 3, 26, 40);
         break;
-      }
+      case 'kick':
+        dashAttack(165, 3, 26, 40);
+        break;
       case 'hadouken': {
-        // Brace, push palms forward, recoil backward from the blast
-        const k = easeOut(t / 8);
-        p.dx = -16 * k;
-        p.rot = -0.05 * k;
-        p.sy = t < 6 ? 0.93 : 0.96;
-        p.sx = t < 6 ? 1.06 : 1.03;
-        p.snap = true;
-        p.ghost = t < 10;
+        // Brace and slide back from the blast
+        p.dx = t < 4 ? 0 : -16 * easeOut((t - 4) / 8);
+        p.ghost = t >= 4 && t < 12;
         break;
       }
       case 'shoryuken': {
-        const crouch = 4, air = 40;
-        if (t < crouch) {
-          p.sy = 0.86; p.sx = 1.08;
-          p.drawState = 'idle';
-        } else if (t < crouch + air) {
-          const u = (t - crouch) / air;
-          p.dy = -140 * Math.sin(Math.PI * u);
-          p.dx = 26 * u;
-          p.rot = 0.18 * (1 - u) - 0.08 * u;
-          p.sy = u < 0.3 ? 1.1 : 1;
-          p.sx = u < 0.3 ? 0.94 : 1;
-          p.ghost = u < 0.6;
-        } else {
-          // Landing squash
-          const s = Math.max(0, 1 - (t - crouch - air) / 8);
-          p.dx = 26;
-          p.sy = 1 - 0.12 * s; p.sx = 1 + 0.1 * s;
-          p.drawState = 'idle';
+        const reach = 220;
+        if (t < 6) {
+          p.dx = reach * easeOut(t / 6);           // low dash in
+          p.ghost = true;
+        } else if (t < 42) {
+          const u = (t - 6) / 36;
+          p.dx = reach + 16 * u;
+          p.dy = -150 * Math.sin(Math.PI * u);     // rising uppercut arc
+          p.ghost = u < 0.45;
+        } else if (t < 48) {
+          p.dx = reach + 16;                       // landing crouch
+        } else if (t < 62) {
+          const u = (t - 48) / 14;
+          p.dx = (reach + 16) * (1 - easeOut(u));
+          p.dy = -22 * Math.sin(Math.PI * u);
         }
-        p.snap = true;
         break;
       }
-      case 'hit': {
-        const k = easeOut(t / 10);
-        p.dx = -34 * k;
-        p.rot = -0.22 * (1 - clamp01((t - 6) / 30));
-        if (t < 4) { p.sx = 1.08; p.sy = 0.92; }
+      case 'hit':
+        p.dx = -34 * easeOut(t / 10);
         p.snap = t < 12;
         break;
-      }
-      case 'dizzy': {
-        p.rot = Math.sin(this.time * 0.1) * 0.08;
-        p.dx = Math.sin(this.time * 0.05) * 6;
+      case 'dizzy':
+        // Stepped wobble, like a 4-frame sprite loop
+        p.rot = [-0.06, 0, 0.06, 0][Math.floor(this.time / 14) % 4];
+        p.dx = [-4, 0, 4, 0][Math.floor(this.time / 14) % 4];
         break;
-      }
       case 'knockdown': {
         const fall = 20, bounce = 10;
         if (t < fall) {
@@ -195,20 +185,14 @@ class ArcadeRenderer {
           p.dy = -26;
           p.rot = -Math.PI / 2;
         }
-        p.snap = true;
         break;
       }
-      case 'win': {
-        // Victory hop, then a proud fist-pump bob
-        if (t < 24) {
-          p.dy = -50 * Math.sin(Math.PI * t / 24);
-        } else {
-          p.dy = -Math.abs(Math.sin((t - 24) * 0.12)) * 6;
-        }
-        p.snap = true;
+      case 'win':
+        // Victory hop
+        p.dy = t < 24 ? -50 * Math.sin(Math.PI * t / 24) : 0;
         break;
-      }
       default:
+        p.snap = false;
         break;
     }
     return p;
@@ -224,20 +208,17 @@ class ArcadeRenderer {
     }
 
     const tgt = this.poseTarget(a.state, a.t);
-    // Snapped states follow their keyframes exactly; everything else
-    // eases toward the target so returning to idle never pops.
+    // Scripted states follow their curves exactly; idle eases home
+    // (e.g. getting back up after a knockdown).
     const k = tgt.snap ? 1 : 0.22;
     a.dx += (tgt.dx - a.dx) * k;
     a.dy += (tgt.dy - a.dy) * k;
     a.rot += (tgt.rot - a.rot) * k;
-    a.sx += (tgt.sx - a.sx) * k;
-    a.sy += (tgt.sy - a.sy) * k;
-    a.drawState = tgt.drawState;
 
-    // Afterimage trail
+    // Afterimage trail (stores the sprite frame, not just the position)
     if (tgt.ghost && !this.reducedMotion) {
       if (a.t % 2 === 0) {
-        a.ghosts.unshift({ dx: a.dx, dy: a.dy, rot: a.rot, sx: a.sx, sy: a.sy, drawState: a.drawState });
+        a.ghosts.unshift({ dx: a.dx, dy: a.dy, rot: a.rot, state: a.state, t: a.t });
         if (a.ghosts.length > 4) a.ghosts.pop();
       }
     } else if (a.ghosts.length && a.t % 2 === 0) {
@@ -250,12 +231,12 @@ class ArcadeRenderer {
       this.addDust(worldX - 40 * dir, 462);
       this.addDust(worldX - 90 * dir, 462);
       this.triggerShake(8);
-    } else if (a.state === 'shoryuken' && a.t === 44) {
+    } else if (a.state === 'shoryuken' && (a.t === 1 || a.t === 42)) {
       this.addDust(worldX, 462);
     } else if (a.state === 'win' && a.t === 24) {
       this.addDust(worldX, 462);
-    } else if ((a.state === 'punch_heavy' || a.state === 'punch') && a.t === 5) {
-      this.addDust(worldX - 20 * dir, 462);
+    } else if ((a.state === 'punch_heavy' || a.state === 'punch' || a.state === 'kick') && a.t === 3) {
+      this.addDust(worldX - 10 * dir, 462);
     }
   }
 
@@ -263,7 +244,6 @@ class ArcadeRenderer {
     ctx.translate(pose.dx * dir, pose.dy);
     if (dir < 0) ctx.scale(-1, 1);
     ctx.rotate(pose.rot);
-    ctx.scale(pose.sx, pose.sy);
   }
 
   drawFighter(ctx, fighter, key, dir, drawFn) {
@@ -274,10 +254,11 @@ class ArcadeRenderer {
     for (let i = a.ghosts.length - 1; i >= 0; i--) {
       const g = a.ghosts[i];
       ctx.save();
-      ctx.globalAlpha = 0.28 * (1 - i / 4);
+      ctx.globalAlpha = 0.3 * (1 - i / 4);
       ctx.translate(fighter.x, fighter.y);
       this.applyPose(ctx, g, dir);
-      view.state = g.drawState;
+      view.state = g.state;
+      view.animT = g.t;
       drawFn.call(this, ctx, view);
       ctx.restore();
     }
@@ -289,7 +270,8 @@ class ArcadeRenderer {
       ctx.translate((Math.random() - 0.5) * 8, 0);
     }
     this.applyPose(ctx, a, dir);
-    view.state = a.drawState;
+    view.state = a.state || fighter.state;
+    view.animT = a.t;
     drawFn.call(this, ctx, view);
     ctx.restore();
   }
@@ -310,6 +292,18 @@ class ArcadeRenderer {
     const count = isHeavy ? 24 : 14;
     // Freeze-frame on impact sells the weight of the hit
     this.hitstop = Math.max(this.hitstop, isHeavy ? 6 : 4);
+    // Arcade-style starburst impact flash (stepped frames)
+    this.particles.push({
+      type: 'impact',
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      size: isHeavy ? 72 : 50,
+      angle: Math.random() * Math.PI,
+      alpha: 1,
+      decay: isHeavy ? 0.1 : 0.14
+    });
     // Shockwave ring
     this.particles.push({
       type: 'shockwave',
@@ -503,17 +497,24 @@ class ArcadeRenderer {
   // --- Main Render Pipeline ---
 
   render(player, enemy, gameState) {
-    const ctx = this.ctx;
+    const main = this.ctx;
     this.fighterRefs = { player, enemy };
     const pa = this.anims.player, ea = this.anims.enemy;
+
+    // Pixel mode: draw the world into a half-resolution buffer, then blow it
+    // up with nearest-neighbour scaling for chunky arcade pixels. Text and
+    // banners are drawn afterwards at full resolution so they stay legible.
+    const pixel = this.pixelMode && this.ensureLowRes();
+    const ctx = pixel ? this.lowCtx : main;
     ctx.save();
+    if (pixel) {
+      ctx.setTransform(this.pixelScale, 0, 0, this.pixelScale, 0, 0);
+    }
 
     // 1. Screen Shake
-    if (this.shake > 0) {
-      const ox = (Math.random() - 0.5) * this.shake;
-      const oy = (Math.random() - 0.5) * this.shake;
-      ctx.translate(ox, oy);
-    }
+    const shakeX = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
+    const shakeY = this.shake > 0 ? (Math.random() - 0.5) * this.shake : 0;
+    ctx.translate(shakeX, shakeY);
 
     // 2. Draw Stage Background with Parallax
     this.drawStage(ctx);
@@ -540,20 +541,48 @@ class ArcadeRenderer {
     // 8. Draw Particles & Shockwaves
     this.drawParticles(ctx);
 
+    ctx.restore();
+
+    if (pixel) {
+      main.save();
+      main.setTransform(1, 0, 0, 1, 0, 0);
+      main.imageSmoothingEnabled = false;
+      main.drawImage(this.lowCanvas, 0, 0, this.width, this.height);
+      main.restore();
+    }
+
+    main.save();
+    main.translate(shakeX, shakeY);
+
     // 9. Draw Floating Hit Texts
-    this.drawFloatingTexts(ctx);
+    this.drawFloatingTexts(main);
 
     // 10. Draw Banner Overlay (ROUND 1, FIGHT, KO)
     if (this.banner) {
-      this.drawBanner(ctx);
+      this.drawBanner(main);
     }
 
-    ctx.restore();
+    main.restore();
 
     // 11. CRT Scanlines & Glass Vignette
     if (this.crtEnabled) {
-      this.drawScanlines(ctx);
+      this.drawScanlines(main);
     }
+  }
+
+  // Lazily create the half-resolution buffer used by pixel mode
+  ensureLowRes() {
+    if (!this.lowCanvas) {
+      try {
+        this.lowCanvas = document.createElement('canvas');
+        this.lowCanvas.width = Math.round(this.width * this.pixelScale);
+        this.lowCanvas.height = Math.round(this.height * this.pixelScale);
+        this.lowCtx = this.lowCanvas.getContext('2d');
+      } catch (err) {
+        this.lowCtx = null;
+      }
+    }
+    return !!this.lowCtx;
   }
 
   // --- Dispatch Stage Renderer ---
@@ -1142,347 +1171,7 @@ class ArcadeRenderer {
     });
   }
 
-  // --- Fighter 1: Player (阿龍 A-Liông) ---
-  // Draws in local fighter space (origin at feet, facing +x);
-  // drawFighter() supplies position, facing and pose transforms.
-  drawPlayer(ctx, p) {
-    ctx.save();
-
-    const isHit = p.state === 'hit';
-    let filterApplied = false;
-    if (isHit && Math.floor(this.time / 2) % 2 === 0) {
-      try {
-        if ('filter' in ctx) {
-          ctx.filter = 'brightness(2.5)';
-          filterApplied = true;
-        }
-      } catch (err) {}
-    }
-
-    const bounce = (p.state === 'idle') ? Math.sin(this.time * 0.16) * 5 : 0;
-    const hbWave1 = Math.sin(this.time * 0.28) * 8;
-    const hbWave2 = Math.sin(this.time * 0.32 + 1) * 10;
-
-    // Headband fluttering tails
-    ctx.fillStyle = '#d32f2f';
-    ctx.beginPath();
-    ctx.moveTo(-16, -122 + bounce);
-    ctx.quadraticCurveTo(-45, -120 + hbWave1 + bounce, -65, -105 + hbWave1 + bounce);
-    ctx.lineTo(-50, -98 + bounce);
-    ctx.quadraticCurveTo(-35, -112 + hbWave1 + bounce, -16, -114 + bounce);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(-14, -120 + bounce);
-    ctx.quadraticCurveTo(-40, -110 + hbWave2 + bounce, -58, -90 + hbWave2 + bounce);
-    ctx.lineTo(-46, -85 + bounce);
-    ctx.quadraticCurveTo(-30, -104 + hbWave2 + bounce, -14, -112 + bounce);
-    ctx.fill();
-
-    // Legs & Hakama
-    ctx.fillStyle = '#f5f5fa';
-    if (p.state === 'kick') {
-      // Extended Roundhouse Kick
-      ctx.fillRect(-22, -55, 18, 55); // base leg
-      ctx.save();
-      ctx.translate(0, -55);
-      ctx.rotate(-0.32);
-      ctx.fillRect(0, -12, 85, 24);
-      // Muscular foot with wraps
-      ctx.fillStyle = '#d89b65';
-      ctx.fillRect(85, -14, 25, 28);
-      ctx.restore();
-    } else if (p.state === 'shoryuken') {
-      // Soaring Dragon Leap
-      ctx.fillRect(-18, -80, 16, 70);
-      ctx.fillRect(4, -65, 16, 50);
-    } else {
-      // Solid Karate stance
-      ctx.fillRect(-28, -58 + bounce, 20, 58 - bounce);
-      ctx.fillRect(8, -58 + bounce, 20, 58 - bounce);
-      // Feet with white wraps
-      ctx.fillStyle = '#d89b65';
-      ctx.fillRect(-30, -6, 24, 10);
-      ctx.fillRect(8, -6, 24, 10);
-    }
-
-    // Torso (White Karate Gi with shading)
-    ctx.fillStyle = '#e8e8f0';
-    ctx.beginPath();
-    ctx.rect(-26, -102 + bounce, 52, 52);
-    ctx.fill();
-    // Gi Lapel Cross fold
-    ctx.strokeStyle = '#c5c5d2';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-24, -102 + bounce); ctx.lineTo(12, -54 + bounce);
-    ctx.moveTo(24, -102 + bounce); ctx.lineTo(-10, -54 + bounce);
-    ctx.stroke();
-
-    // Black Belt with Gold Calligraphy
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-28, -58 + bounce, 56, 12);
-    ctx.fillRect(-12, -46 + bounce, 9, 24);
-    ctx.fillRect(-3, -46 + bounce, 9, 28);
-    // Gold embroidery tip
-    ctx.fillStyle = '#ffd700';
-    ctx.fillRect(-12, -26 + bounce, 9, 4);
-
-    // Arms & Attacks
-    ctx.fillStyle = '#d89b65';
-    if (p.state === 'punch_light') {
-      // Snapping Jab with speed motion lines
-      ctx.fillRect(-10, -92 + bounce, 75, 18);
-      ctx.fillStyle = '#d32f2f'; // Red glove
-      ctx.fillRect(65, -95 + bounce, 24, 24);
-      // Speed lines
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(20, -100 + bounce); ctx.lineTo(80, -100 + bounce);
-      ctx.moveTo(30, -70 + bounce); ctx.lineTo(85, -70 + bounce);
-      ctx.stroke();
-    } else if (p.state === 'punch_heavy') {
-      // Lunging Heavy Punch
-      ctx.fillRect(-10, -90 + bounce, 95, 22);
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(85, -94 + bounce, 28, 30);
-    } else if (p.state === 'hadouken') {
-      // Thrusting Palms Forward
-      ctx.fillRect(-6, -96 + bounce, 65, 18);
-      ctx.fillRect(-6, -78 + bounce, 65, 18);
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(58, -98 + bounce, 22, 22);
-      ctx.fillRect(58, -80 + bounce, 22, 22);
-      // Ki glow around hands
-      ctx.save();
-      const hGlow = ctx.createRadialGradient(75, -88 + bounce, 10, 75, -88 + bounce, 35);
-      hGlow.addColorStop(0, '#ffffff');
-      hGlow.addColorStop(0.5, '#00e5ff');
-      hGlow.addColorStop(1, 'rgba(0, 229, 255, 0)');
-      ctx.fillStyle = hGlow;
-      ctx.beginPath();
-      ctx.arc(75, -88 + bounce, 35, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    } else if (p.state === 'shoryuken') {
-      // Flaming Dragon Uppercut
-      ctx.fillRect(8, -165, 22, 75);
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(6, -180, 26, 28);
-      // Fire aura trails
-      ctx.save();
-      for (let f = 0; f < 7; f++) {
-        ctx.fillStyle = (f % 2 === 0) ? '#ff3d00' : '#ffea00';
-        ctx.shadowColor = '#ff3d00';
-        ctx.shadowBlur = 18;
-        ctx.beginPath();
-        ctx.arc(18 + (Math.random() * 24 - 12), -160 + f * 16, 14, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    } else if (p.state === 'win') {
-      // Victory: fist thrust to the sky, other hand on hip
-      ctx.fillRect(4, -170 + bounce, 20, 78);
-      ctx.fillRect(-34, -92 + bounce, 14, 34);
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(1, -190 + bounce, 26, 26);
-    } else {
-      // Classical Guard stance
-      ctx.fillRect(-10, -90 + bounce, 30, 18);
-      ctx.fillRect(16, -100 + bounce, 24, 18);
-      ctx.fillStyle = '#d32f2f';
-      ctx.fillRect(20, -92 + bounce, 18, 20);
-      ctx.fillRect(36, -102 + bounce, 18, 20);
-    }
-
-    // Head, Intense Expression & Hair
-    ctx.fillStyle = '#d89b65';
-    ctx.beginPath();
-    ctx.arc(0, -120 + bounce, 20, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Red Headband
-    ctx.fillStyle = '#d32f2f';
-    ctx.fillRect(-20, -132 + bounce, 40, 11);
-
-    // Spiky Black Martial Hair
-    ctx.fillStyle = '#1a1824';
-    ctx.beginPath();
-    ctx.moveTo(-20, -132 + bounce);
-    ctx.lineTo(-28, -148 + bounce);
-    ctx.lineTo(-12, -138 + bounce);
-    ctx.lineTo(0, -154 + bounce);
-    ctx.lineTo(14, -138 + bounce);
-    ctx.lineTo(26, -145 + bounce);
-    ctx.lineTo(20, -130 + bounce);
-    ctx.closePath();
-    ctx.fill();
-
-    // Eyes
-    ctx.fillStyle = '#000';
-    if (p.state === 'hit' || p.state === 'knockdown') {
-      ctx.fillRect(6, -120 + bounce, 8, 3);
-    } else {
-      ctx.fillRect(6, -123 + bounce, 7, 5);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(9, -123 + bounce, 3, 2);
-    }
-
-    // Dizzy Stars
-    if (p.state === 'dizzy') {
-      const sRot = this.time * 0.12;
-      for (let s = 0; s < 3; s++) {
-        const ang = sRot + s * (Math.PI * 2 / 3);
-        const sx = Math.cos(ang) * 30;
-        const sy = -155 + Math.sin(ang) * 10;
-        ctx.fillStyle = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(sx, sy, 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    if (filterApplied) {
-      try { ctx.filter = 'none'; } catch (err) {}
-    }
-    ctx.restore();
-  }
-
-  // --- Fighter 2: Enemy Challenger ---
-  drawEnemy(ctx, e) {
-    ctx.save();
-
-    const isHit = e.state === 'hit';
-    let filterApplied = false;
-    if (isHit && Math.floor(this.time / 2) % 2 === 0) {
-      try {
-        if ('filter' in ctx) {
-          ctx.filter = 'brightness(2.5)';
-          filterApplied = true;
-        }
-      } catch (err) {}
-    }
-
-    const bounce = (e.state === 'idle') ? Math.sin(this.time * 0.14) * 5 : 0;
-    const stageId = this.currentStage;
-
-    let pantsCol = '#263238';
-    let vestCol = '#c62828';
-    let skinCol = '#cfa07c';
-    let hasAura = (stageId === 3);
-
-    if (stageId === 1) { // 廟公伯
-      pantsCol = '#212121';
-      vestCol = '#e65100';
-      skinCol = '#d7b088';
-    } else if (stageId === 2) { // 海霸王
-      pantsCol = '#0d47a1';
-      vestCol = '#0277bd';
-      skinCol = '#b57948';
-    } else if (stageId === 3) { // 考官修羅
-      pantsCol = '#1a0033';
-      vestCol = '#4a148c';
-      skinCol = '#9e89b3';
-    }
-
-    // Demonic Flaming Purple Aura for Final Boss (修羅)
-    if (hasAura) {
-      ctx.save();
-      for (let a = 0; a < 8; a++) {
-        const ax = (Math.random() - 0.5) * 70;
-        const ay = -135 + Math.random() * 125;
-        const aGlow = ctx.createRadialGradient(ax, ay, 4, ax, ay, 24);
-        aGlow.addColorStop(0, '#e040fb');
-        aGlow.addColorStop(0.5, '#7c4dff');
-        aGlow.addColorStop(1, 'rgba(124, 77, 255, 0)');
-        ctx.fillStyle = aGlow;
-        ctx.beginPath();
-        ctx.arc(ax, ay, 24, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    // Legs & Combat Boots
-    ctx.fillStyle = pantsCol;
-    ctx.fillRect(-30, -62 + bounce, 24, 62 - bounce);
-    ctx.fillRect(8, -62 + bounce, 24, 62 - bounce);
-    // Heavy Boots
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-32, -8, 28, 12);
-    ctx.fillRect(8, -8, 28, 12);
-
-    // Torso / Vest
-    ctx.fillStyle = vestCol;
-    ctx.fillRect(-30, -106 + bounce, 60, 54);
-
-    // Arms
-    ctx.fillStyle = skinCol;
-    if (e.state === 'punch') {
-      ctx.fillRect(-10, -96 + bounce, 95, 24);
-      ctx.fillStyle = '#111';
-      ctx.fillRect(80, -100 + bounce, 28, 32);
-    } else {
-      ctx.fillRect(-12, -94 + bounce, 32, 20);
-      ctx.fillRect(18, -102 + bounce, 26, 20);
-      ctx.fillStyle = '#111';
-      ctx.fillRect(22, -96 + bounce, 20, 24);
-      ctx.fillRect(38, -104 + bounce, 20, 24);
-    }
-
-    // Head
-    ctx.fillStyle = skinCol;
-    ctx.beginPath();
-    ctx.arc(0, -126 + bounce, 22, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Specific Boss Styling
-    if (stageId === 0) { // 火雞哥 (Bandanna + Chain)
-      ctx.fillStyle = '#ff1744';
-      ctx.fillRect(-22, -138 + bounce, 44, 12);
-      ctx.fillStyle = '#ffd700'; // Gold Chain
-      ctx.beginPath();
-      ctx.arc(0, -88 + bounce, 14, 0, Math.PI);
-      ctx.lineWidth = 3; ctx.strokeStyle = '#ffd700'; ctx.stroke();
-    } else if (stageId === 1) { // 廟公伯 (Flowing White Beard)
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.moveTo(-14, -114 + bounce);
-      ctx.lineTo(0, -85 + bounce);
-      ctx.lineTo(14, -114 + bounce);
-      ctx.fill();
-    } else if (stageId === 2) { // 海霸王 (Captain Sailor Hat)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(-20, -146 + bounce, 40, 14);
-      ctx.fillStyle = '#0d47a1';
-      ctx.fillRect(-24, -132 + bounce, 48, 6);
-    } else if (stageId === 3) { // 考官修羅 (Wild Demonic Spikes)
-      ctx.fillStyle = '#ff0055';
-      ctx.beginPath();
-      ctx.moveTo(-24, -136 + bounce);
-      ctx.lineTo(-38, -165 + bounce);
-      ctx.lineTo(-12, -145 + bounce);
-      ctx.lineTo(0, -175 + bounce);
-      ctx.lineTo(16, -145 + bounce);
-      ctx.lineTo(40, -165 + bounce);
-      ctx.lineTo(24, -136 + bounce);
-      ctx.fill();
-    }
-
-    // Eyes
-    ctx.fillStyle = hasAura ? '#ff0055' : '#000';
-    if (e.state === 'hit' || e.state === 'knockdown') {
-      ctx.fillRect(5, -126 + bounce, 9, 3);
-    } else {
-      ctx.fillRect(6, -128 + bounce, 7, 5);
-    }
-
-    if (filterApplied) {
-      try { ctx.filter = 'none'; } catch (err) {}
-    }
-    ctx.restore();
-  }
+  // Fighters (drawPlayer / drawEnemy) are drawn by the jointed rig in js/fighters.js
 
   // --- Projectiles & Special Moves ---
   drawProjectiles(ctx) {
@@ -1525,10 +1214,39 @@ class ArcadeRenderer {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (p.type === 'impact') {
+        // Two-layer jagged star; size steps instead of tweening
+        ctx.globalAlpha = 1;
+        const scale = p.alpha > 0.7 ? 0.75 : (p.alpha > 0.35 ? 1 : 0.6);
+        const star = (r, inner, color, outline) => {
+          ctx.beginPath();
+          for (let k = 0; k < 16; k++) {
+            const rr = (k % 2 ? inner : r) * (k % 4 === 0 ? 1 : 0.78);
+            const aa = p.angle + k * Math.PI / 8;
+            ctx.lineTo(p.x + Math.cos(aa) * rr, p.y + Math.sin(aa) * rr);
+          }
+          ctx.closePath();
+          if (outline) {
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = outline;
+            ctx.stroke();
+          }
+          ctx.fillStyle = color;
+          ctx.fill();
+        };
+        star(p.size * scale, p.size * scale * 0.38, '#ffd54f', '#e65100');
+        star(p.size * scale * 0.6, p.size * scale * 0.22, '#ffffff', null);
+      } else if (p.type === 'spark') {
+        // Short streak along the travel direction
+        ctx.strokeStyle = p.color;
+        ctx.lineCap = 'butt';
+        ctx.lineWidth = Math.max(2, p.size * 0.55);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 1.6, p.y - p.vy * 1.6);
+        ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();

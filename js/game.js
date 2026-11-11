@@ -56,7 +56,7 @@ class TaigiFighterGame {
     this.player = {
       name: '阿龍 (A-Liông)',
       title: '台語拳豪',
-      x: 280,
+      x: 340,
       y: 460,
       hp: 100,
       maxHp: 100,
@@ -70,7 +70,7 @@ class TaigiFighterGame {
     this.enemy = {
       name: '火雞哥',
       title: '夜市霸王',
-      x: 680,
+      x: 620,
       y: 460,
       hp: 100,
       maxHp: 100,
@@ -214,6 +214,12 @@ class TaigiFighterGame {
       const on = this.audio.toggleSFX();
       e.target.textContent = on ? '🔊 音效: 開' : '🔊 音效: 關';
       e.target.classList.toggle('active', on);
+    });
+
+    document.getElementById('btnTogglePixel')?.addEventListener('click', (e) => {
+      this.renderer.pixelMode = !this.renderer.pixelMode;
+      e.target.textContent = this.renderer.pixelMode ? '👾 像素: 開' : '👾 像素: 關';
+      e.target.classList.toggle('active', this.renderer.pixelMode);
     });
 
     document.getElementById('btnToggleCRT')?.addEventListener('click', (e) => {
@@ -462,8 +468,9 @@ class TaigiFighterGame {
     this.showScreen('hudOverlay');
     this.audio.startBGM('battle');
 
-    this.player.x = 280;
-    this.enemy.x = 680;
+    // Classic arcade spacing: close enough that dashing attacks connect
+    this.player.x = 340;
+    this.enemy.x = 620;
     this.player.state = 'idle';
     this.enemy.state = 'idle';
 

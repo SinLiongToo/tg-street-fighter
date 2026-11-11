@@ -1943,3 +1943,17 @@ body.versus-mode #arcadePad { display: none !important; }
     border-width: 2px !important;
   }
 }
+
+/* Portrait phones: header tools (incl. pixel toggle) scroll sideways
+   instead of being clipped off the right edge */
+@media screen and (orientation: portrait) and (max-width: 600px) {
+  .marquee-tools {
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .marquee-tools::-webkit-scrollbar { display: none; }
+  .arcade-tool-btn { flex-shrink: 0 !important; }
+}
