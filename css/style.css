@@ -1761,3 +1761,185 @@ html, body {
     height: 48px !important;
   }
 }
+
+/* ==========================================================
+   2P Versus Mode (same-device buzzer battle)
+   ========================================================== */
+.sf-btn.versus {
+  background: linear-gradient(180deg, #8e24aa 0%, #6a1b9a 50%, #38006b 100%);
+  border-color: #80deea;
+  box-shadow: 0 6px 0px #1f0038, 0 0 20px rgba(142, 36, 170, 0.55);
+}
+.sf-btn.versus:hover {
+  background: linear-gradient(180deg, #ab47bc 0%, #7b1fa2 50%, #4a148c 100%);
+  box-shadow: 0 8px 0px #1f0038, 0 0 30px rgba(128, 222, 234, 0.8);
+}
+
+/* Character select */
+#versusSelectOverlay {
+  padding: 20px 16px;
+  gap: 10px;
+  text-align: center;
+}
+.vs-select-heading {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 5vw, 40px);
+  color: var(--arcade-gold);
+  text-shadow: 3px 3px 0 #b71c1c, 0 0 18px rgba(255, 223, 0, 0.6);
+}
+.vs-select-rules {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  max-width: 560px;
+}
+.vs-select-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.key-chip {
+  font-size: 13px;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 2px solid;
+}
+.key-chip.p1-chip { color: var(--arcade-cyan); border-color: var(--arcade-cyan); }
+.key-chip.p2-chip { color: #ff7043; border-color: #ff7043; }
+.vs-select-prompt {
+  color: #ff7043;
+  font-weight: 900;
+  font-size: 17px;
+  margin-top: 4px;
+}
+.vs-char-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+}
+.vs-char-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  background: linear-gradient(180deg, #3f226d 0%, #20103b 100%);
+  border: 3px solid #8e44ad;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-taigi);
+  transition: transform 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
+}
+.vs-char-card:hover,
+.vs-char-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: #ff7043;
+  box-shadow: 0 0 18px rgba(255, 112, 67, 0.7);
+  outline: none;
+}
+.vs-char-icon { font-size: 34px; line-height: 1; }
+.vs-char-name { font-size: 16px; font-weight: 900; }
+.vs-char-stage { font-size: 12px; color: #ffca28; }
+
+/* Buzzer row under the answers */
+.vs-buzzer-row { display: none; }
+body.versus-mode .vs-buzzer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.vs-buzzer-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  min-width: 0;
+}
+.vs-buzzer-side.p1-side {
+  background: rgba(0, 229, 255, 0.1);
+  border: 2px solid var(--arcade-cyan);
+}
+.vs-buzzer-side.p2-side {
+  background: rgba(255, 112, 67, 0.12);
+  border: 2px solid #ff7043;
+}
+.vs-buzzer-label {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+}
+.p1-side .vs-buzzer-label { color: var(--arcade-cyan); }
+.p2-side .vs-buzzer-label { color: #ff7043; }
+.vs-buzzer-row .pad-btn {
+  width: 46px !important;
+  height: 46px !important;
+  font-size: 16px !important;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* In versus the answer cards are display-only; players use their own buzzers */
+body.versus-mode .arcade-opt-btn { pointer-events: none; cursor: default; }
+body.versus-mode .super-meter-container { display: none !important; }
+body.versus-mode #arcadePad { display: none !important; }
+
+/* Tag showing who buzzed in on the chosen answer */
+.arcade-opt-btn.by-p1::after,
+.arcade-opt-btn.by-p2::after {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 8px;
+  color: #000;
+}
+.arcade-opt-btn.by-p1::after { content: '1P'; background: var(--arcade-cyan); }
+.arcade-opt-btn.by-p2::after { content: '2P'; background: #ff7043; }
+
+/* Landscape phones/tablets: narrow right-hand deck, stack the two pads */
+@media screen and (orientation: landscape) and (max-height: 650px),
+       screen and (min-aspect-ratio: 13/10) and (max-height: 650px) {
+  body.versus-mode .vs-buzzer-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 5px !important;
+    margin-top: 5px !important;
+  }
+  .vs-buzzer-side { justify-content: space-between; padding: 3px 8px; }
+  .vs-buzzer-row .pad-btn {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 14px !important;
+  }
+  .vs-buzzer-label { font-size: 16px; }
+  .vs-char-card { padding: 8px 4px; }
+  .vs-char-icon { font-size: 26px; }
+  .vs-select-rules { font-size: 13px; }
+}
+
+/* Portrait phones: keep both pads side by side, one per player */
+@media screen and (orientation: portrait) and (max-width: 600px) {
+  .vs-char-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.versus-mode .vs-buzzer-row { gap: 4px; margin-top: 8px; }
+  .vs-buzzer-side { gap: 4px; padding: 4px 5px; }
+  .vs-buzzer-label { font-size: 14px; }
+  .vs-buzzer-row .pad-btn {
+    width: clamp(28px, 8vw, 40px) !important;
+    height: clamp(28px, 8vw, 40px) !important;
+    font-size: 13px !important;
+    border-width: 2px !important;
+  }
+}

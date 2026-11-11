@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Charis+SIL:ital,wght@0,700;1,700&family=Noto+Sans+TC:wght@400;700;900&family=Iansui&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/style.css?v=2.2">
+  <link rel="stylesheet" href="css/style.css?v=2.4">
 </head>
 <body>
 
@@ -64,6 +64,10 @@
             <span class="btn-icon">🔥</span>
             <span class="btn-text">無盡生存戰 (SURVIVAL MODE)</span>
           </button>
+          <button id="btnStartVersus" class="sf-btn versus">
+            <span class="btn-icon">🆚</span>
+            <span class="btn-text">雙人搶答對戰 (2P VERSUS)</span>
+          </button>
         </div>
 
         <div class="coin-prompt">
@@ -80,6 +84,24 @@
           <span class="credit-sep">×</span>
           <span class="credit-plain">CAPCOM《快打旋風》</span>
         </div>
+      </div>
+
+      <!-- 1b. 2P Versus Character Select Overlay -->
+      <div id="versusSelectOverlay" class="overlay-screen hidden">
+        <div class="vs-select-heading">🆚 雙人搶答對戰</div>
+        <div class="vs-select-rules">同一題兩人搶答：先答對的出招打對手，答錯的予對手反擊！三戰兩勝。</div>
+        <div class="vs-select-keys">
+          <span class="key-chip p1-chip">1P 阿龍：鍵盤 1 2 3 4</span>
+          <span class="key-chip p2-chip">2P：鍵盤 7 8 9 0（或數字鍵盤 1-4）</span>
+        </div>
+        <div class="vs-select-prompt">2P 請選擇角色：</div>
+        <div id="versusCharGrid" class="vs-char-grid">
+          <button class="vs-char-card" data-char="0"><span class="vs-char-icon">🦃</span><span class="vs-char-name">火雞哥</span><span class="vs-char-stage">台南・大東夜市</span></button>
+          <button class="vs-char-card" data-char="1"><span class="vs-char-icon">🏯</span><span class="vs-char-name">鐵拳廟公伯</span><span class="vs-char-stage">台中・大甲鎮瀾宮</span></button>
+          <button class="vs-char-card" data-char="2"><span class="vs-char-icon">⚓</span><span class="vs-char-name">港都海霸王</span><span class="vs-char-stage">高雄・旗津漁港</span></button>
+          <button class="vs-char-card" data-char="3"><span class="vs-char-icon">👹</span><span class="vs-char-name">考官修羅</span><span class="vs-char-stage">台北・大稻埕天台</span></button>
+        </div>
+        <button id="btnVersusBack" class="sf-btn secondary small-btn">◀ 返回主畫面</button>
       </div>
 
       <!-- 2. VS Confrontation Screen Overlay -->
@@ -215,15 +237,16 @@
       <!-- 6. Victory Champion Screen Overlay -->
       <div id="winOverlay" class="overlay-screen hidden">
         <div class="win-crown-icon">👑</div>
-        <div class="win-banner">YOU ARE THE CHAMPION!</div>
-        <div class="win-subheading">
+        <div id="winBannerText" class="win-banner">YOU ARE THE CHAMPION!</div>
+        <div id="winSubText" class="win-subheading">
           制霸全台四大經典擂台！台語推薦用字七百字融會貫通！
         </div>
-        <div class="win-stats-box">
+        <div id="winStatsBox" class="win-stats-box">
           <span class="win-score-label">FINAL SCORE</span>
           <span id="finalScoreText" class="win-score-val">0</span>
         </div>
-        <button id="btnBackToMenuWin" class="sf-btn" onclick="window.game.showScreen('titleScreen')">
+        <button id="btnVersusRematch" class="sf-btn gold hidden">🔁 再戰一場 (REMATCH)</button>
+        <button id="btnBackToMenuWin" class="sf-btn" onclick="window.game.returnToTitle()">
           重返街機大廳
         </button>
       </div>
@@ -281,6 +304,24 @@
         <button id="optBtn2" class="arcade-opt-btn btn-c">C. 阿姑</button>
         <button id="optBtn3" class="arcade-opt-btn btn-d">D. 阿母</button>
       </div>
+
+      <!-- 2P Versus buzzer pads (shown only in versus mode) -->
+      <div id="vsBuzzerRow" class="vs-buzzer-row">
+        <div class="vs-buzzer-side p1-side" id="vsBuzzerP1">
+          <span class="vs-buzzer-label">1P</span>
+          <button class="pad-btn a" data-player="1" data-opt="0">A</button>
+          <button class="pad-btn b" data-player="1" data-opt="1">B</button>
+          <button class="pad-btn c" data-player="1" data-opt="2">C</button>
+          <button class="pad-btn d" data-player="1" data-opt="3">D</button>
+        </div>
+        <div class="vs-buzzer-side p2-side" id="vsBuzzerP2">
+          <button class="pad-btn a" data-player="2" data-opt="0">A</button>
+          <button class="pad-btn b" data-player="2" data-opt="1">B</button>
+          <button class="pad-btn c" data-player="2" data-opt="2">C</button>
+          <button class="pad-btn d" data-player="2" data-opt="3">D</button>
+          <span class="vs-buzzer-label">2P</span>
+        </div>
+      </div>
     </section>
   </div><!-- /#battleArena -->
 
@@ -304,9 +345,9 @@
 </div><!-- /#arcadeWrapper -->
 
 <!-- Game Scripts with cache-busting -->
-<script src="js/words_data.js?v=2.2"></script>
-<script src="js/audio.js?v=2.2"></script>
-<script src="js/renderer.js?v=2.2"></script>
-<script src="js/game.js?v=2.2"></script>
+<script src="js/words_data.js?v=2.4"></script>
+<script src="js/audio.js?v=2.4"></script>
+<script src="js/renderer.js?v=2.4"></script>
+<script src="js/game.js?v=2.4"></script>
 </body>
 </html>

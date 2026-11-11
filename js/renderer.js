@@ -31,6 +31,16 @@ class ArcadeRenderer {
     // CRT scanline overlay state
     this.crtEnabled = true;
 
+    // Hit-stop (freeze frames on impact) & per-fighter pose animation state
+    this.hitstop = 0;
+    this.fighterRefs = null;
+    this.anims = {
+      player: this.createAnimState(),
+      enemy: this.createAnimState()
+    };
+    this.reducedMotion = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
     // Current stage
     this.currentStage = 0;
     this.stages = [
@@ -73,7 +83,215 @@ class ArcadeRenderer {
   }
 
   triggerShake(intensity = 16) {
-    this.shake = intensity;
+    this.shake = this.reducedMotion ? intensity * 0.3 : intensity;
+  }
+
+  // --- Fighter Pose Animation Engine ---
+  // Game logic only flips `fighter.state`; this layer turns those discrete
+  // states into motion: wind-up, lunge, recoil, knockback, jumps, falls,
+  // and smooth blending back to idle.
+
+  createAnimState() {
+    return { state: null, t: 0, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, drawState: 'idle', ghosts: [] };
+  }
+
+  poseTarget(state, t) {
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const easeOut = v => 1 - Math.pow(1 - clamp01(v), 3);
+    const easeIn = v => Math.pow(clamp01(v), 2);
+    const p = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, snap: false, ghost: false, drawState: state };
+
+    switch (state) {
+      case 'punch_light':
+      case 'punch_heavy':
+      case 'kick':
+      case 'punch': {
+        const heavy = state === 'punch_heavy' || state === 'punch';
+        const reach = heavy ? 46 : (state === 'kick' ? 30 : 24);
+        const windup = 4;
+        if (t < windup) {
+          // Anticipation: pull back and coil before the strike
+          const u = t / windup;
+          p.dx = -10 * u;
+          p.rot = -0.07 * u;
+          p.sx = 1 - 0.05 * u;
+          p.sy = 1 + 0.04 * u;
+          p.drawState = 'idle';
+        } else {
+          const k = easeOut((t - windup) / 5);
+          p.dx = -10 + (reach + 10) * k;
+          p.rot = -0.07 + 0.17 * k;
+          // Stretch into the strike, then settle
+          const s = Math.max(0, 1 - (t - windup) / 8);
+          p.sx = 1 + 0.08 * s;
+          p.sy = 1 - 0.05 * s;
+        }
+        p.snap = true;
+        p.ghost = heavy && t >= windup && t < windup + 10;
+        break;
+      }
+      case 'hadouken': {
+        // Brace, push palms forward, recoil backward from the blast
+        const k = easeOut(t / 8);
+        p.dx = -16 * k;
+        p.rot = -0.05 * k;
+        p.sy = t < 6 ? 0.93 : 0.96;
+        p.sx = t < 6 ? 1.06 : 1.03;
+        p.snap = true;
+        p.ghost = t < 10;
+        break;
+      }
+      case 'shoryuken': {
+        const crouch = 4, air = 40;
+        if (t < crouch) {
+          p.sy = 0.86; p.sx = 1.08;
+          p.drawState = 'idle';
+        } else if (t < crouch + air) {
+          const u = (t - crouch) / air;
+          p.dy = -140 * Math.sin(Math.PI * u);
+          p.dx = 26 * u;
+          p.rot = 0.18 * (1 - u) - 0.08 * u;
+          p.sy = u < 0.3 ? 1.1 : 1;
+          p.sx = u < 0.3 ? 0.94 : 1;
+          p.ghost = u < 0.6;
+        } else {
+          // Landing squash
+          const s = Math.max(0, 1 - (t - crouch - air) / 8);
+          p.dx = 26;
+          p.sy = 1 - 0.12 * s; p.sx = 1 + 0.1 * s;
+          p.drawState = 'idle';
+        }
+        p.snap = true;
+        break;
+      }
+      case 'hit': {
+        const k = easeOut(t / 10);
+        p.dx = -34 * k;
+        p.rot = -0.22 * (1 - clamp01((t - 6) / 30));
+        if (t < 4) { p.sx = 1.08; p.sy = 0.92; }
+        p.snap = t < 12;
+        break;
+      }
+      case 'dizzy': {
+        p.rot = Math.sin(this.time * 0.1) * 0.08;
+        p.dx = Math.sin(this.time * 0.05) * 6;
+        break;
+      }
+      case 'knockdown': {
+        const fall = 20, bounce = 10;
+        if (t < fall) {
+          // Launched backward, spinning toward the floor
+          const u = t / fall;
+          p.dx = -90 * easeOut(u);
+          p.dy = -60 * Math.sin(Math.PI * u);
+          p.rot = -Math.PI / 2 * easeIn(u);
+        } else if (t < fall + bounce) {
+          const u = (t - fall) / bounce;
+          p.dx = -90 - 12 * u;
+          p.dy = -26 - 16 * Math.sin(Math.PI * u);
+          p.rot = -Math.PI / 2;
+        } else {
+          p.dx = -102;
+          p.dy = -26;
+          p.rot = -Math.PI / 2;
+        }
+        p.snap = true;
+        break;
+      }
+      case 'win': {
+        // Victory hop, then a proud fist-pump bob
+        if (t < 24) {
+          p.dy = -50 * Math.sin(Math.PI * t / 24);
+        } else {
+          p.dy = -Math.abs(Math.sin((t - 24) * 0.12)) * 6;
+        }
+        p.snap = true;
+        break;
+      }
+      default:
+        break;
+    }
+    return p;
+  }
+
+  stepFighterAnim(key, fighter, dir) {
+    const a = this.anims[key];
+    if (a.state !== fighter.state) {
+      a.state = fighter.state;
+      a.t = 0;
+    } else {
+      a.t++;
+    }
+
+    const tgt = this.poseTarget(a.state, a.t);
+    // Snapped states follow their keyframes exactly; everything else
+    // eases toward the target so returning to idle never pops.
+    const k = tgt.snap ? 1 : 0.22;
+    a.dx += (tgt.dx - a.dx) * k;
+    a.dy += (tgt.dy - a.dy) * k;
+    a.rot += (tgt.rot - a.rot) * k;
+    a.sx += (tgt.sx - a.sx) * k;
+    a.sy += (tgt.sy - a.sy) * k;
+    a.drawState = tgt.drawState;
+
+    // Afterimage trail
+    if (tgt.ghost && !this.reducedMotion) {
+      if (a.t % 2 === 0) {
+        a.ghosts.unshift({ dx: a.dx, dy: a.dy, rot: a.rot, sx: a.sx, sy: a.sy, drawState: a.drawState });
+        if (a.ghosts.length > 4) a.ghosts.pop();
+      }
+    } else if (a.ghosts.length && a.t % 2 === 0) {
+      a.ghosts.pop();
+    }
+
+    // Impact events: dust & thud when a fighter touches down
+    const worldX = fighter.x + a.dx * dir;
+    if (a.state === 'knockdown' && a.t === 20) {
+      this.addDust(worldX - 40 * dir, 462);
+      this.addDust(worldX - 90 * dir, 462);
+      this.triggerShake(8);
+    } else if (a.state === 'shoryuken' && a.t === 44) {
+      this.addDust(worldX, 462);
+    } else if (a.state === 'win' && a.t === 24) {
+      this.addDust(worldX, 462);
+    } else if ((a.state === 'punch_heavy' || a.state === 'punch') && a.t === 5) {
+      this.addDust(worldX - 20 * dir, 462);
+    }
+  }
+
+  applyPose(ctx, pose, dir) {
+    ctx.translate(pose.dx * dir, pose.dy);
+    if (dir < 0) ctx.scale(-1, 1);
+    ctx.rotate(pose.rot);
+    ctx.scale(pose.sx, pose.sy);
+  }
+
+  drawFighter(ctx, fighter, key, dir, drawFn) {
+    const a = this.anims[key];
+    const view = Object.assign({}, fighter);
+
+    // Afterimages (oldest first, faintest)
+    for (let i = a.ghosts.length - 1; i >= 0; i--) {
+      const g = a.ghosts[i];
+      ctx.save();
+      ctx.globalAlpha = 0.28 * (1 - i / 4);
+      ctx.translate(fighter.x, fighter.y);
+      this.applyPose(ctx, g, dir);
+      view.state = g.drawState;
+      drawFn.call(this, ctx, view);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(fighter.x, fighter.y);
+    // Impact jitter while frozen in hit-stop
+    if (a.state === 'hit' && this.hitstop > 0) {
+      ctx.translate((Math.random() - 0.5) * 8, 0);
+    }
+    this.applyPose(ctx, a, dir);
+    view.state = a.drawState;
+    drawFn.call(this, ctx, view);
+    ctx.restore();
   }
 
   showBanner(text, subtext = '', color = '#ffdf00', duration = 90) {
@@ -90,6 +308,8 @@ class ArcadeRenderer {
 
   addHitSpark(x, y, isHeavy = false) {
     const count = isHeavy ? 24 : 14;
+    // Freeze-frame on impact sells the weight of the hit
+    this.hitstop = Math.max(this.hitstop, isHeavy ? 6 : 4);
     // Shockwave ring
     this.particles.push({
       type: 'shockwave',
@@ -156,23 +376,35 @@ class ArcadeRenderer {
       text,
       x,
       y,
-      vy: -2.2,
+      vy: -3.4,
       alpha: 1,
       color,
-      decay: 0.02
+      decay: 0.02,
+      age: 0
     });
   }
 
   // --- Main Update Loop ---
 
   update() {
-    this.time++;
-
     // Shake decay
     if (this.shake > 0.1) {
       this.shake *= this.shakeDecay;
     } else {
       this.shake = 0;
+    }
+
+    // Hit-stop: the whole scene holds for a few frames on impact
+    if (this.hitstop > 0) {
+      this.hitstop--;
+      return;
+    }
+
+    this.time++;
+
+    if (this.fighterRefs) {
+      this.stepFighterAnim('player', this.fighterRefs.player, 1);
+      this.stepFighterAnim('enemy', this.fighterRefs.enemy, -1);
     }
 
     // Lightning flash timer decay
@@ -238,8 +470,10 @@ class ArcadeRenderer {
     // Update floating texts
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
+      ft.age++;
       ft.y += ft.vy;
-      ft.alpha -= ft.decay;
+      ft.vy *= 0.95;
+      if (ft.age > 25) ft.alpha -= ft.decay * 1.6;
       if (ft.alpha <= 0) {
         this.floatingTexts.splice(i, 1);
       }
@@ -248,8 +482,12 @@ class ArcadeRenderer {
     // Update banner
     if (this.banner) {
       this.banner.timer++;
-      if (this.banner.timer < 14) {
-        this.banner.scale = 3.0 - (this.banner.timer / 14) * 2.0;
+      if (this.banner.timer < 16) {
+        // Slam in with a slight overshoot (easeOutBack)
+        const u = this.banner.timer / 16;
+        const c1 = 1.70158, c3 = c1 + 1;
+        const eob = 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+        this.banner.scale = 3.0 - 2.0 * eob;
       } else {
         this.banner.scale = 1.0;
       }
@@ -266,6 +504,8 @@ class ArcadeRenderer {
 
   render(player, enemy, gameState) {
     const ctx = this.ctx;
+    this.fighterRefs = { player, enemy };
+    const pa = this.anims.player, ea = this.anims.enemy;
     ctx.save();
 
     // 1. Screen Shake
@@ -282,15 +522,17 @@ class ArcadeRenderer {
     this.drawEmbers(ctx);
 
     // 4. Draw Floor Dynamic Shadows
-    this.drawFloorShadow(ctx, player.x, 462, 55, player.state);
-    this.drawFloorShadow(ctx, enemy.x, 462, 60, enemy.state);
+    this.drawFloorShadow(ctx, player.x + pa.dx, 462, 55, pa, 1);
+    this.drawFloorShadow(ctx, enemy.x - ea.dx, 462, 60, ea, -1);
 
     // 5. Draw Projectiles Floor Illumination (glow on ground as fireball travels)
     this.drawProjectilesGroundGlow(ctx);
 
-    // 6. Draw Fighters
-    this.drawPlayer(ctx, player);
-    this.drawEnemy(ctx, enemy);
+    // 6. Draw Fighters (the one currently attacking is drawn on top)
+    const enemyFirst = player.state !== 'idle' && enemy.state !== 'punch';
+    if (enemyFirst) this.drawFighter(ctx, enemy, 'enemy', -1, this.drawEnemy);
+    this.drawFighter(ctx, player, 'player', 1, this.drawPlayer);
+    if (!enemyFirst) this.drawFighter(ctx, enemy, 'enemy', -1, this.drawEnemy);
 
     // 7. Draw Projectiles & Plasma Energy
     this.drawProjectiles(ctx);
@@ -870,17 +1112,18 @@ class ArcadeRenderer {
   }
 
   // --- Dynamic Floor Shadows ---
-  drawFloorShadow(ctx, x, y, radius, state) {
+  drawFloorShadow(ctx, x, y, radius, pose, dir) {
     ctx.save();
-    let r = radius;
-    let alpha = 0.5;
-    if (state === 'shoryuken') {
-      r = radius * 0.4;
-      alpha = 0.2;
-    }
+    // Shadow shrinks and fades as the fighter leaves the ground,
+    // and stretches out (behind the feet) when lying flat
+    const lift = Math.min(1, Math.max(0, -(pose.dy + (Math.abs(pose.rot) > 1 ? 26 : 0)) / 140));
+    const flat = Math.min(1, Math.abs(pose.rot) / (Math.PI / 2));
+    const r = radius * (1 - 0.6 * lift) * (1 + 0.9 * flat);
+    const alpha = 0.5 * (1 - 0.6 * lift);
+    x -= 60 * flat * dir;
     ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
     ctx.beginPath();
-    ctx.ellipse(x, y, r, 14, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, r, 14 * (1 - 0.4 * lift), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -900,9 +1143,10 @@ class ArcadeRenderer {
   }
 
   // --- Fighter 1: Player (阿龍 A-Liông) ---
+  // Draws in local fighter space (origin at feet, facing +x);
+  // drawFighter() supplies position, facing and pose transforms.
   drawPlayer(ctx, p) {
     ctx.save();
-    ctx.translate(p.x, p.y);
 
     const isHit = p.state === 'hit';
     let filterApplied = false;
@@ -1037,6 +1281,12 @@ class ArcadeRenderer {
         ctx.fill();
       }
       ctx.restore();
+    } else if (p.state === 'win') {
+      // Victory: fist thrust to the sky, other hand on hip
+      ctx.fillRect(4, -170 + bounce, 20, 78);
+      ctx.fillRect(-34, -92 + bounce, 14, 34);
+      ctx.fillStyle = '#d32f2f';
+      ctx.fillRect(1, -190 + bounce, 26, 26);
     } else {
       // Classical Guard stance
       ctx.fillRect(-10, -90 + bounce, 30, 18);
@@ -1071,7 +1321,7 @@ class ArcadeRenderer {
 
     // Eyes
     ctx.fillStyle = '#000';
-    if (p.state === 'hit') {
+    if (p.state === 'hit' || p.state === 'knockdown') {
       ctx.fillRect(6, -120 + bounce, 8, 3);
     } else {
       ctx.fillRect(6, -123 + bounce, 7, 5);
@@ -1102,8 +1352,6 @@ class ArcadeRenderer {
   // --- Fighter 2: Enemy Challenger ---
   drawEnemy(ctx, e) {
     ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.scale(-1, 1); // Face left towards player
 
     const isHit = e.state === 'hit';
     let filterApplied = false;
@@ -1224,7 +1472,11 @@ class ArcadeRenderer {
 
     // Eyes
     ctx.fillStyle = hasAura ? '#ff0055' : '#000';
-    ctx.fillRect(6, -128 + bounce, 7, 5);
+    if (e.state === 'hit' || e.state === 'knockdown') {
+      ctx.fillRect(5, -126 + bounce, 9, 3);
+    } else {
+      ctx.fillRect(6, -128 + bounce, 7, 5);
+    }
 
     if (filterApplied) {
       try { ctx.filter = 'none'; } catch (err) {}
@@ -1289,7 +1541,12 @@ class ArcadeRenderer {
   drawFloatingTexts(ctx) {
     this.floatingTexts.forEach(ft => {
       ctx.save();
-      ctx.globalAlpha = ft.alpha;
+      ctx.globalAlpha = Math.max(0, ft.alpha);
+      // Pop in big, then settle to normal size
+      const pop = ft.age < 8 ? 1.7 - 0.7 * (ft.age / 8) : 1;
+      ctx.translate(ft.x, ft.y);
+      ctx.scale(pop, pop);
+      ctx.translate(-ft.x, -ft.y);
       ctx.font = '900 26px "Noto Sans TC", sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 5;

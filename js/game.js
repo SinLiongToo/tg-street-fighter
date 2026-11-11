@@ -97,6 +97,11 @@ class TaigiFighterGame {
 
     // Binding loop
     this.lastTime = 0;
+
+    // 2P Versus: chosen P2 character, and a token that invalidates
+    // pending round timers when a match is abandoned or restarted
+    this.versusChar = 0;
+    this.matchToken = 0;
   }
 
   init() {
@@ -166,6 +171,37 @@ class TaigiFighterGame {
         this.startSurvivalMode();
       }, 300);
     });
+
+    // 2P Versus Mode
+    document.getElementById('btnStartVersus')?.addEventListener('click', () => {
+      this.audio.playSelect();
+      this.openVersusSelect();
+    });
+    document.getElementById('btnVersusBack')?.addEventListener('click', () => this.returnToTitle());
+    document.querySelectorAll('#versusCharGrid .vs-char-card').forEach(card => {
+      card.addEventListener('click', () => {
+        this.audio.playCoin();
+        this.startVersusMode(parseInt(card.dataset.char, 10) || 0);
+      });
+    });
+    // pointerdown (not click) so both players can buzz at the same time on a
+    // shared touch screen and the faster finger wins without the click delay
+    document.querySelectorAll('#vsBuzzerRow [data-player]').forEach(btn => {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        this.handleVersusAnswer(parseInt(btn.dataset.player, 10), parseInt(btn.dataset.opt, 10));
+      });
+    });
+    document.getElementById('btnVersusRematch')?.addEventListener('click', () => {
+      this.audio.playCoin();
+      this.startVersusMode(this.versusChar);
+    });
+
+    // Remember the arcade champion screen text so versus results can reuse it
+    this.winScreenDefaults = {
+      banner: document.getElementById('winBannerText')?.textContent || '',
+      sub: document.getElementById('winSubText')?.textContent || ''
+    };
 
     // Settings & Toggles
     document.getElementById('btnToggleBGM')?.addEventListener('click', (e) => {
@@ -251,6 +287,7 @@ class TaigiFighterGame {
   }
 
   returnToTitle() {
+    this.matchToken++;
     this.isClashActive = false;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
@@ -284,6 +321,23 @@ class TaigiFighterGame {
       return;
     }
 
+    if (this.state === 'FIGHT' && this.gameMode === 'VERSUS') {
+      if (e.repeat) return;
+      // Physical key codes: 1P = top-row 1-4, 2P = top-row 7-0 or numpad 1-4
+      const p1Keys = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 };
+      const p2Keys = { Digit7: 0, Digit8: 1, Digit9: 2, Digit0: 3, Numpad1: 0, Numpad2: 1, Numpad3: 2, Numpad4: 3 };
+      if (e.code in p1Keys) {
+        e.preventDefault();
+        this.handleVersusAnswer(1, p1Keys[e.code]);
+      } else if (e.code in p2Keys) {
+        e.preventDefault();
+        this.handleVersusAnswer(2, p2Keys[e.code]);
+      } else if ((e.key === 'r' || e.key === 'R') && this.currentQuestion && this.currentQuestion.wordObj) {
+        this.audio.playTaigiAudio(this.currentQuestion.wordObj);
+      }
+      return;
+    }
+
     if (this.state === 'FIGHT') {
       if (e.key === '1' || e.key === 'j' || e.key === 'J' || e.key === 'a' || e.key === 'A') {
         this.handleOptionSelect(0);
@@ -305,7 +359,8 @@ class TaigiFighterGame {
   }
 
   showScreen(screenId) {
-    const screens = ['titleScreen', 'vsScreen', 'hudOverlay', 'dojoOverlay', 'continueOverlay', 'winOverlay', 'aboutOverlay'];
+    document.body.classList.toggle('versus-mode', this.gameMode === 'VERSUS');
+    const screens = ['titleScreen', 'versusSelectOverlay', 'vsScreen', 'hudOverlay', 'dojoOverlay', 'continueOverlay', 'winOverlay', 'aboutOverlay'];
     screens.forEach(s => {
       const el = document.getElementById(s);
       if (el) el.classList.add('hidden');
@@ -325,6 +380,7 @@ class TaigiFighterGame {
   // --- Game Modes ---
 
   startArcadeMode() {
+    this.matchToken++;
     this.gameMode = 'ARCADE';
     this.currentStageIndex = 0;
     this.score = 0;
@@ -333,6 +389,7 @@ class TaigiFighterGame {
   }
 
   startSurvivalMode() {
+    this.matchToken++;
     this.gameMode = 'SURVIVAL';
     this.currentStageIndex = 0;
     this.score = 0;
@@ -343,6 +400,7 @@ class TaigiFighterGame {
   }
 
   startDojoMode() {
+    this.matchToken++;
     this.gameMode = 'DOJO';
     this.state = 'DOJO';
     this.showScreen('dojoOverlay');
@@ -388,7 +446,8 @@ class TaigiFighterGame {
     document.getElementById('vsP1Title').textContent = this.player.title;
     document.getElementById('vsP2Name').textContent = stage.name;
     document.getElementById('vsP2Title').textContent = stage.title;
-    document.getElementById('vsStageLocation').textContent = stage.location;
+    document.getElementById('vsStageLocation').textContent =
+      this.gameMode === 'VERSUS' ? `🆚 雙人對戰・${stage.location}` : stage.location;
     document.getElementById('vsEnemyQuote').textContent = stage.dialogue;
 
     this.audio.playAnnouncer('Versus!');
@@ -530,13 +589,14 @@ class TaigiFighterGame {
       const btn = document.getElementById(`optBtn${i}`);
       if (btn) {
         btn.textContent = `${['A', 'B', 'C', 'D'][i]}. ${options[i]}`;
-        btn.className = 'arcade-opt-btn';
+        btn.className = `arcade-opt-btn btn-${'abcd'[i]}`;
         btn.disabled = false;
       }
     }
   }
 
   handleOptionSelect(selectedIndex) {
+    if (this.gameMode === 'VERSUS') return; // versus uses the 1P/2P buzzers
     if (this.state !== 'FIGHT' || !this.isClashActive || !this.currentQuestion) return;
 
     this.isClashActive = false;
@@ -658,6 +718,7 @@ class TaigiFighterGame {
   }
 
   triggerSuperCombo() {
+    if (this.gameMode === 'VERSUS') return;
     if (this.state !== 'FIGHT' || this.player.superMeter < this.player.maxSuper || !this.isClashActive) return;
 
     this.isClashActive = false;
@@ -695,6 +756,10 @@ class TaigiFighterGame {
   }
 
   timeOver() {
+    if (this.gameMode === 'VERSUS') {
+      this.versusTimeOver();
+      return;
+    }
     this.isClashActive = false;
     this.renderer.showBanner('TIME OVER', '', '#ff4d4f', 80);
     this.audio.playAnnouncer('Time Over!');
@@ -814,6 +879,7 @@ class TaigiFighterGame {
   showWinScreen() {
     this.state = 'MATCH_OVER';
     this.showScreen('winOverlay');
+    this.setWinScreen(this.winScreenDefaults.banner, this.winScreenDefaults.sub, false);
     this.audio.stopBGM();
     this.audio.playVictory();
     document.getElementById('finalScoreText').textContent = this.score.toString();
@@ -891,8 +957,194 @@ class TaigiFighterGame {
     }
 
     // Fighter Names
-    document.getElementById('hudP1Name').textContent = this.player.name;
-    document.getElementById('hudP2Name').textContent = this.enemy.name;
+    const isVersus = this.gameMode === 'VERSUS';
+    document.getElementById('hudP1Name').textContent = isVersus ? '1P 阿龍' : this.player.name;
+    document.getElementById('hudP2Name').textContent = isVersus ? `2P ${this.enemy.name}` : this.enemy.name;
+  }
+
+  // --- 2P Versus Mode (same-device buzzer battle) ---
+
+  openVersusSelect() {
+    this.matchToken++;
+    this.gameMode = 'VERSUS';
+    this.state = 'VERSUS_SELECT';
+    this.showScreen('versusSelectOverlay');
+  }
+
+  startVersusMode(charIdx) {
+    this.matchToken++;
+    this.gameMode = 'VERSUS';
+    this.versusChar = charIdx;
+    this.score = 0;
+    this.streak = 0;
+    this.player.combo = 0;
+    this.player.superMeter = 0;
+    this.audio.playStart();
+    this.startStage(charIdx);
+  }
+
+  handleVersusAnswer(playerNum, selectedIndex) {
+    if (this.gameMode !== 'VERSUS' || this.state !== 'FIGHT' || !this.isClashActive || !this.currentQuestion) return;
+
+    this.isClashActive = false;
+    const q = this.currentQuestion;
+    const isCorrect = selectedIndex === q.correctIndex;
+    const isFast = (performance.now() - q.startTime) / 1000 <= 2.8;
+
+    // Reveal the answer and tag who buzzed in
+    for (let i = 0; i < 4; i++) {
+      const btn = document.getElementById(`optBtn${i}`);
+      if (!btn) continue;
+      btn.disabled = true;
+      if (i === q.correctIndex) btn.classList.add('correct');
+      else if (i === selectedIndex) btn.classList.add('wrong');
+      if (i === selectedIndex) btn.classList.add(`by-p${playerNum}`);
+    }
+
+    const other = playerNum === 1 ? 2 : 1;
+    if (isCorrect) {
+      const label = isFast ? `⚡ ${playerNum}P 秒答！` : `💥 ${playerNum}P 答對！`;
+      this.versusStrike(playerNum, isFast ? 30 : 22, label, isFast, q.type);
+    } else {
+      this.versusStrike(other, 18, `❌ ${playerNum}P 答錯！反擊！`, false, q.type);
+    }
+  }
+
+  versusStrike(attacker, dmg, label, isHeavy, qType) {
+    const token = this.matchToken;
+    const defender = attacker === 1 ? this.enemy : this.player;
+    let delay = 160;
+
+    if (attacker === 1) {
+      if (qType === 'HADOUKEN') {
+        this.player.state = 'hadouken';
+        this.audio.playHadouken();
+        this.renderer.addFireball(this.player.x + 60, 380, this.enemy.x, true, false);
+        delay = 260;
+      } else if (qType === 'SHORYUKEN') {
+        this.player.state = 'shoryuken';
+        this.audio.playShoryuken();
+      } else if (qType === 'HEAVY_PUNCH') {
+        this.player.state = 'punch_heavy';
+        this.audio.playHeavyHit();
+      } else {
+        this.player.state = 'kick';
+        this.audio.playLightHit();
+      }
+    } else {
+      this.enemy.state = 'punch';
+      if (qType === 'HADOUKEN') {
+        this.audio.playHadouken();
+        this.renderer.addFireball(this.enemy.x - 60, 380, this.player.x, false, false);
+        delay = 260;
+      } else {
+        this.audio.playHeavyHit();
+        delay = 180;
+      }
+    }
+
+    setTimeout(() => {
+      if (token !== this.matchToken || this.state !== 'FIGHT') return;
+      defender.state = 'hit';
+      defender.hp = Math.max(0, defender.hp - dmg);
+      this.renderer.triggerShake(isHeavy ? 16 : 10);
+      this.renderer.addHitSpark(defender.x, 380, isHeavy);
+      this.renderer.addFloatingText(label, defender.x, 330, attacker === 1 ? '#00e5ff' : '#ff7043');
+      this.renderer.addFloatingText(`-${dmg} HP`, defender.x, 365, '#ff4d4f');
+      this.updateHUD();
+
+      if (defender.hp <= 0) {
+        this.versusRoundOver(attacker);
+      } else {
+        setTimeout(() => {
+          if (token !== this.matchToken || this.state !== 'FIGHT') return;
+          this.player.state = 'idle';
+          this.enemy.state = 'idle';
+          this.isClashActive = true;
+          this.nextClashQuestion();
+        }, 1000);
+      }
+    }, delay);
+  }
+
+  versusTimeOver() {
+    const token = this.matchToken;
+    this.isClashActive = false;
+    clearInterval(this.timerInterval);
+    this.renderer.showBanner('TIME OVER', '', '#ff4d4f', 80);
+    this.audio.playAnnouncer('Time Over!');
+    setTimeout(() => {
+      if (token !== this.matchToken) return;
+      const winner = this.player.hp > this.enemy.hp ? 1 : (this.enemy.hp > this.player.hp ? 2 : 0);
+      this.versusRoundOver(winner);
+    }, 1500);
+  }
+
+  // winner: 1 or 2, or 0 for a drawn round
+  versusRoundOver(winner) {
+    const token = this.matchToken;
+    this.isClashActive = false;
+    clearInterval(this.timerInterval);
+
+    const winF = winner === 1 ? this.player : (winner === 2 ? this.enemy : null);
+    const loseF = winner === 1 ? this.enemy : (winner === 2 ? this.player : null);
+
+    if (loseF) {
+      loseF.state = 'knockdown';
+      this.audio.playKO();
+      this.renderer.triggerShake(22);
+      this.renderer.showBanner('K.O.!', '', '#ff0033', 100);
+      this.audio.playAnnouncer('K.O.!');
+    }
+
+    setTimeout(() => {
+      if (token !== this.matchToken) return;
+      if (winF) {
+        winF.roundsWon++;
+        winF.state = 'win';
+        const name = winner === 1 ? '阿龍' : this.enemy.name;
+        this.renderer.showBanner(`${winner}P WIN!`, `${name} 勝！`, winner === 1 ? '#00e5ff' : '#ff7043', 90);
+        this.audio.playVictory();
+      } else {
+        this.renderer.showBanner('DRAW', '平手！', '#ffdf00', 90);
+      }
+      this.updateHUD();
+
+      setTimeout(() => {
+        if (token !== this.matchToken) return;
+        const p1 = this.player.roundsWon, p2 = this.enemy.roundsWon;
+        if (p1 >= 2 || p2 >= 2 || this.roundNumber >= 5) {
+          this.showVersusResult(p1 > p2 ? 1 : (p2 > p1 ? 2 : 0));
+        } else {
+          this.roundNumber++;
+          this.player.hp = 100;
+          this.enemy.hp = 100;
+          this.startRound();
+        }
+      }, 2500);
+    }, loseF ? 1500 : 300);
+  }
+
+  showVersusResult(winner) {
+    this.state = 'MATCH_OVER';
+    this.showScreen('winOverlay');
+    this.audio.stopBGM();
+    this.audio.playVictory();
+    if (winner === 0) {
+      this.setWinScreen('DRAW GAME', '平分秋色，閣來一場！', true);
+    } else {
+      const name = winner === 1 ? '1P 阿龍' : `2P ${this.enemy.name}`;
+      this.setWinScreen(`${winner}P WINS!`, `${name} 三戰兩勝，台語拳頭上強！`, true);
+    }
+  }
+
+  setWinScreen(banner, sub, isVersus) {
+    const bannerEl = document.getElementById('winBannerText');
+    const subEl = document.getElementById('winSubText');
+    if (bannerEl) bannerEl.textContent = banner;
+    if (subEl) subEl.textContent = sub;
+    document.getElementById('winStatsBox')?.classList.toggle('hidden', isVersus);
+    document.getElementById('btnVersusRematch')?.classList.toggle('hidden', !isVersus);
   }
 
   // --- Dojo Logic ---
@@ -941,12 +1193,22 @@ class TaigiFighterGame {
   // --- Main Animation Loop ---
 
   loop(currentTime) {
-    const dt = (currentTime - this.lastTime) / 1000;
+    // Fixed 60Hz simulation step so animation speed is identical on
+    // 60/90/120/144Hz screens; render once per display frame.
+    const STEP = 1000 / 60;
+    const elapsed = Math.min(Math.max(currentTime - this.lastTime, 0), 250);
     this.lastTime = currentTime;
+    this.frameAccumulator = (this.frameAccumulator || 0) + elapsed;
 
     if (this.renderer) {
       try {
-        this.renderer.update();
+        let steps = 0;
+        while (this.frameAccumulator >= STEP && steps < 5) {
+          this.renderer.update();
+          this.frameAccumulator -= STEP;
+          steps++;
+        }
+        if (steps === 5) this.frameAccumulator = 0;
         this.renderer.render(this.player, this.enemy, this.state);
       } catch (err) {
         console.error('Renderer loop error:', err);
